@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dominó Acessível - Multiplayer Online</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9; --text-color: #1a1a1a; --card-bg: #ffffff;
+            --border-color: #cccccc; --focus-outline: #0056b3;
+            --btn-bg: #0056b3; --btn-text: #ffffff;
+            --alert-bg: #fff3cd; --alert-text: #856404;
+            --danger-bg: #dc3545; --danger-text: #ffffff;
+        }
+        .dark-mode {
+            --bg-color: #121212; --text-color: #e0e0e0; --card-bg: #1e1e1e;
+            --border-color: #444444; --focus-outline: #4da6ff;
+            --btn-bg: #333333; --btn-text: #e0e0e0;
+            --alert-bg: #4d4013; --alert-text: #e0d08f;
+            --danger-bg: #a71d2a; --danger-text: #ffffff;
+        }
+
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: Arial, sans-serif; margin: 0; padding: 20px; transition: all 0.3s ease; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+        
+        button, select, input { font-size: 1rem; padding: 12px 18px; margin: 5px; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 5px; }
+        button { background-color: var(--btn-bg); color: var(--btn-text); cursor: pointer; }
+        button:focus, select:focus, input:focus { outline: 3px solid var(--focus-outline); outline-offset: 2px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #btn-desistir, #btn-sair-sala { background-color: var(--danger-bg); color: var(--danger-text); }
+        .btn-secundario { background-color: #6c757d; }
+
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .mesa-info { background-color: var(--alert-bg); color: var(--alert-text); padding: 10px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; }
+        
+        .peca { display: inline-block; border: 2px solid var(--border-color); padding: 10px 15px; margin: 5px; font-weight: bold; font-size: 1.2rem; background-color: var(--bg-color); color: var(--text-color); }
+        
+        .modal { display: none; border: 2px solid var(--focus-outline); padding: 15px; background-color: var(--card-bg); margin-top: 15px; border-radius: 8px; }
+        .ranking-box { border: 1px dashed var(--border-color); padding: 15px; margin-bottom: 15px; background-color: var(--bg-color); }
+
+        details { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
+        summary { font-weight: bold; cursor: pointer; padding: 5px; }
+        #lista-historico { list-style-type: none; padding-left: 0; max-height: 150px; overflow-y: auto; }
+        #lista-historico li { padding: 5px 0; border-bottom: 1px dashed var(--border-color); }
+
+        #tela-jogo { display: flex; flex-direction: column; min-height: 75vh; }
+        #secao-mesa { flex: 1; border-bottom: 2px dashed var(--border-color); padding-bottom: 15px; min-height: 30vh; }
+        #secao-mao { flex: 1; padding-top: 15px; min-height: 30vh; }
+        
+        .chat-container { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
+        .lista-mensagens { max-height: 200px; overflow-y: auto; list-style: none; padding: 0; margin-bottom: 10px; border: 1px inset var(--border-color); background: var(--card-bg); padding: 5px;}
+        .lista-mensagens li { padding: 5px; border-bottom: 1px dotted var(--border-color); }
+        
+        .sala-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; background: var(--card-bg); }
+        
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        .form-group label { font-weight: bold; margin-bottom: 5px; }
+    </style>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <div id="anunciador-acessibilidade" class="sr-only" aria-live="polite"></div>
+    <div id="anunciador-urgente" class="sr-only" aria-live="assertive"></div>
+
+    <div class="container">
+        <header>
+            <h1>Dominó Acessível</h1>
+            <button id="btn-tema" aria-pressed="false">Ativar modo escuro</button>
+        </header>
+
+        <main id="tela-login">
+            <h2>Identificação do Jogador</h2>
+            <p>Faça login ou crie sua conta para jogar online.</p>
+            
+            <div class="form-group">
+                <label for="input-email">E-mail:</label>
+                <input type="email" id="input-email" placeholder="seu@email.com">
+            </div>
+            
+            <div class="form-group">
+                <label for="input-senha">Senha:</label>
+                <input type="password" id="input-senha" placeholder="Mínimo 6 caracteres">
+            </div>
+            
+            <div class="form-group">
+                <label for="input-apelido">Apelido (Preencha apenas para Criar Conta):</label>
+                <input type="text" id="input-apelido" placeholder="Como você será conhecido">
+            </div>
+            
+            <button id="btn-entrar">Entrar</button>
+            <button id="btn-criar-conta">Criar Nova Conta</button>
+            <button id="btn-recuperar-senha" class="btn-secundario">Esqueci a Senha</button>
+        </main>
+
+        <main id="tela-menu" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-menu" tabindex="-1">Bem-vindo, <span id="display-apelido"></span>!</h2>
+            <button id="btn-trocar-apelido">Sair / Trocar Conta</button>
+
+            <div class="ranking-box" tabindex="0">
+                <h3>Status do Servidor</h3>
+                <p>Usuários Online: <span id="contador-online">0</span></p>
+                <p>Salas Ativas: <span id="contador-salas">0</span></p>
+            </div>
+
+            <div class="ranking-box" tabindex="0">
+                <h3>Seu Ranking Pessoal (Local)</h3>
+                <p>Séries Vencidas: <span id="ranking-vitorias">0</span> | Séries Perdidas: <span id="ranking-derrotas">0</span></p>
+            </div>
+
+            <h2>Modo Multiplayer Online</h2>
+            <button id="btn-criar-sala-online">Criar Mesa Online</button>
+            
+            <div id="lista-salas-online" class="chat-container">
+                <h3>Mesas Disponíveis</h3>
+                <div id="ul-salas" aria-live="polite">
+                    <p>Nenhuma sala aberta no momento.</p>
+                </div>
+            </div>
+            
+            <div class="chat-container">
+                <h3>Chat Global</h3>
+                <ul id="lista-chat-global" class="lista-mensagens" aria-live="polite"></ul>
+                <input type="text" id="input-chat-global" placeholder="Digite sua mensagem para todos...">
+                <button id="btn-enviar-chat-global">Enviar</button>
+            </div>
+
+            <hr>
+
+            <h2>Modo Local Clássico</h2>
+            <label for="select-partidas">Jogar uma melhor de:</label>
+            <select id="select-partidas">
+                <option value="1">1 Partida</option>
+                <option value="3">3 Partidas</option>
+                <option value="5">5 Partidas</option>
+            </select>
+            <button id="btn-modo-local">Jogar Offline (Contra Máquina)</button>
+            <button id="btn-continuar-jogo" style="display: none;">Continuar Série Salva</button>
+        </main>
+
+        <main id="tela-espera-sala" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-sala" tabindex="-1">Mesa Online</h2>
+            <p><strong>Dono da Mesa:</strong> <span id="nome-dono-sala"></span></p>
+            
+            <div class="ranking-box">
+                <h3>Jogadores na Mesa (<span id="qtd-jogadores-sala">1</span>/4)</h3>
+                <ul id="lista-jogadores-sala" aria-live="polite"></ul>
+            </div>
+            
+            <div id="controles-admin-sala" style="display: none;" class="chat-container">
+                <h3>Controles de Administração</h3>
+                <button id="btn-add-bot">Adicionar Bot (Estado)</button>
+                <button id="btn-iniciar-online">Iniciar Partida Online</button>
+            </div>
+            
+            <button id="btn-sair-sala">Sair da Mesa</button>
+        </main>
+
+        <main id="tela-jogo" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-partida" tabindex="-1">Série em Andamento</h2>
+            
+            <section class="mesa-info" id="info-status" tabindex="0">
+                <p><strong>Placar da Série:</strong> Você <span id="placar-jogador">0</span> x <span id="placar-bot">0</span> Máquina (Alvo: <span id="placar-alvo">1</span> vitórias)</p>
+                <p><strong>Turno:</strong> <span id="texto-turno">Sua vez</span></p>
+                <p><strong>Última Ação:</strong> <span id="texto-ultima-acao">Partida iniciada.</span></p>
+                <p><strong>Mesa:</strong> Esq: <span id="ponta-esq">Vazia</span> | Dir: <span id="ponta-dir">Vazia</span></p>
+                <p><strong>Monte:</strong> <span id="qtd-monte">14</span> | <strong>Oponente:</strong> <span id="qtd-bot">7</span></p>
+            </section>
+
+            <section id="secao-mesa" aria-labelledby="titulo-mesa">
+                <h3 id="titulo-mesa" class="sr-only">Peças na Mesa</h3>
+                <div id="area-mesa"></div>
+            </section>
+
+            <div id="modal-escolha" class="modal" role="dialog" aria-labelledby="titulo-modal" aria-modal="true">
+                <h3 id="titulo-modal">Escolha o lado</h3>
+                <p id="texto-modal-peca"></p>
+                <button id="btn-jogar-esq">Jogar na Esquerda</button>
+                <button id="btn-jogar-dir">Jogar na Direita</button>
+                <button id="btn-cancelar-jogada">Cancelar Seleção</button>
+            </div>
+
+            <div id="modal-fim-partida" class="modal" role="dialog" aria-labelledby="titulo-modal-fim" aria-modal="true">
+                <h3 id="titulo-modal-fim">Fim da Partida!</h3>
+                <p id="texto-resultado-partida"></p>
+                <button id="btn-proxima-partida">Iniciar Próxima Partida</button>
+                <button id="btn-encerrar-serie" style="display: none;">Voltar ao Menu</button>
+            </div>
+
+            <section id="secao-mao" aria-labelledby="titulo-mao">
+                <h3 id="titulo-mao">Suas Peças</h3>
+                <div id="area-mao" role="group" aria-label="Suas peças" tabindex="-1"></div>
+                <br>
+                <button id="btn-cavar">Comprar Peça do Monte</button>
+                <button id="btn-pausar">Pausar e Salvar Série</button>
+                <button id="btn-desistir">Desistir da Partida</button>
+            </section>
+            
+            <details id="detalhes-historico">
+                <summary>Histórico Completo de Jogadas</summary>
+                <ul id="lista-historico" aria-live="polite"></ul>
+            </details>
+        </main>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8",
+            authDomain: "dominoacessivel.firebaseapp.com",
+            databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com",
+            projectId: "dominoacessivel",
+            storageBucket: "dominoacessivel.firebasestorage.app",
+            messagingSenderId: "253382950798",
+            appId: "1:253382950798:web:76e3c75dd7d687647feedf"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
+        function tocarSom(tipo) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if (tipo === 'embaralhar') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (tipo === 'jogar') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (tipo === 'erro') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.setValueAtTime(100, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (tipo === 'vitoria') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.2); osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+            }
+        }
+
+        const btnTema = document.getElementById('btn-tema');
+        const anunciadorPolite = document.getElementById('anunciador-acessibilidade');
+        const anunciadorAssertivo = document.getElementById('anunciador-urgente');
+
+        function falar(texto) { anunciadorPolite.textContent = ''; setTimeout(() => anunciadorPolite.textContent = texto, 100); }
+        function falarAssertivo(texto) { anunciadorAssertivo.textContent = ''; setTimeout(() => anunciadorAssertivo.textContent = texto, 100); }
+
+        btnTema.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            btnTema.textContent = isDark ? 'Desativar modo escuro' : 'Ativar modo escuro';
+            btnTema.setAttribute('aria-pressed', isDark);
+            falarAssertivo(isDark ? 'Modo escuro ativado.' : 'Modo escuro desativado.');
+        });
+
+        let jogadorApelido = '';
+        let currentUser = null;
+        let ranking = JSON.parse(localStorage.getItem('domino_ranking')) || { vitorias: 0, derrotas: 0 };
+        const estadosBrasil = ["Acre", "Alagoas", "Amapá", "Amazonas", "Bahia", "Ceará", "Distrito Federal", "Espírito Santo", "Goiás", "Maranhão", "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Pará", "Paraíba", "Paraná", "Pernambuco", "Piauí", "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia", "Roraima", "Santa Catarina", "São Paulo", "Sergipe", "Tocantins"];
+        let salaAtualRef = null;
+
+        function atualizarDisplayRanking() {
+            document.getElementById('ranking-vitorias').textContent = ranking.vitorias;
+            document.getElementById('ranking-derrotas').textContent = ranking.derrotas;
+        }
+
+        function irParaMenu() {
+            document.getElementById('tela-login').style.display = 'none';
+            document.getElementById('tela-espera-sala').style.display = 'none';
+            document.getElementById('tela-jogo').style.display = 'none';
+            document.getElementById('tela-menu').style.display = 'block';
+            document.getElementById('display-apelido').textContent = jogadorApelido;
+            atualizarDisplayRanking();
+            verificarSaveStatus();
+            document.getElementById('titulo-menu').focus();
+            falarAssertivo(`Bem-vindo ao menu, ${jogadorApelido}.`);
+            if(salaAtualRef) { salaAtualRef.off(); salaAtualRef = null; }
+        }
+
+        // --- AUTENTICAÇÃO POR E-MAIL E SENHA ---
+        document.getElementById('btn-criar-conta').addEventListener('click', () => {
+            const email = document.getElementById('input-email').value.trim();
+            const senha = document.getElementById('input-senha').value.trim();
+            const apelido = document.getElementById('input-apelido').value.trim();
+
+            if(!email || !senha || !apelido) {
+                falarAssertivo("Preencha todos os campos: e-mail, senha e apelido.");
+                return;
+            }
+            if(senha.length < 6) {
+                falarAssertivo("A senha deve ter no mínimo 6 caracteres.");
+                return;
+            }
+
+            falarAssertivo("Criando sua conta. Aguarde.");
+            auth.createUserWithEmailAndPassword(email, senha).then((cred) => {
+                return cred.user.updateProfile({ displayName: apelido }).then(() => {
+                    db.ref(`usuarios/${cred.user.uid}`).set({
+                        apelido: apelido,
+                        email: email,
+                        nivel: 'usuario'
+                    });
+                });
+            }).catch(error => {
+                falarAssertivo("Erro ao criar conta: " + error.message);
+            });
+        });
+
+        document.getElementById('btn-entrar').addEventListener('click', () => {
+            const email = document.getElementById('input-email').value.trim();
+            const senha = document.getElementById('input-senha').value.trim();
+            
+            if(!email || !senha) {
+                falarAssertivo("Preencha e-mail e senha para entrar.");
+                return;
+            }
+
+            falarAssertivo("Verificando credenciais.");
+            auth.signInWithEmailAndPassword(email, senha).catch(error => {
+                falarAssertivo("Erro ao entrar. Verifique seu e-mail e senha.");
+            });
+        });
+
+        document.getElementById('btn-recuperar-senha').addEventListener('click', () => {
+            const email = document.getElementById('input-email').value.trim();
+            if(!email) {
+                falarAssertivo("Para recuperar a senha, digite seu e-mail primeiro.");
+                return;
+            }
+            auth.sendPasswordResetEmail(email).then(() => {
+                falarAssertivo("Instruções de recuperação foram enviadas para o seu e-mail.");
+            }).catch(error => {
+                falarAssertivo("Erro ao enviar recuperação: " + error.message);
+            });
+        });
+
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                jogadorApelido = user.displayName || "Jogador";
+                
+                const presenceRef = db.ref(`lobby/presenca/${user.uid}`);
+                presenceRef.set(true);
+                presenceRef.onDisconnect().remove();
+
+                irParaMenu();
+                iniciarListenersLobby();
+            } else {
+                currentUser = null;
+                document.getElementById('tela-login').style.display = 'block';
+                document.getElementById('tela-menu').style.display = 'none';
+            }
+        });
+
+        document.getElementById('btn-trocar-apelido').addEventListener('click', () => {
+            auth.signOut().then(() => {
+                falarAssertivo("Você saiu da conta.");
+            });
+        });
+
+        // --- SISTEMA ONLINE (LOBBY E SALAS) ---
+        function iniciarListenersLobby() {
+            db.ref('lobby/presenca').on('value', snap => {
+                document.getElementById('contador-online').textContent = snap.numChildren();
+            });
+            db.ref('salas').on('value', snap => {
+                document.getElementById('contador-salas').textContent = snap.numChildren();
+                renderizarListaSalas(snap.val());
+            });
+            db.ref('chats/global').limitToLast(50).on('child_added', snap => {
+                const msg = snap.val();
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${msg.autor}:</strong> ${msg.texto}`;
+                const ul = document.getElementById('lista-chat-global');
+                ul.appendChild(li);
+                ul.scrollTop = ul.scrollHeight;
+            });
+        }
+
+        document.getElementById('btn-enviar-chat-global').addEventListener('click', () => {
+            const input = document.getElementById('input-chat-global');
+            const texto = input.value.trim();
+            if(texto && currentUser) {
+                db.ref('chats/global').push({
+                    autor: jogadorApelido,
+                    uid: currentUser.uid,
+                    texto: texto,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                input.value = '';
+            }
+        });
+
+        function renderizarListaSalas(salas) {
+            const ul = document.getElementById('ul-salas');
+            ul.innerHTML = '';
+            if(!salas) {
+                ul.innerHTML = '<p>Nenhuma sala aberta.</p>';
+                return;
+            }
+            Object.keys(salas).forEach(key => {
+                const sala = salas[key];
+                if(sala.status === 'aguardando') {
+                    const div = document.createElement('div');
+                    div.className = 'sala-item';
+                    const numJogadores = sala.jogadores ? Object.keys(sala.jogadores).length : 0;
+                    div.innerHTML = `
+                        <span>Mesa de ${sala.nomeAdmin} (${numJogadores}/4)</span>
+                        <button onclick="entrarNaSala('${key}')">Entrar</button>
+                    `;
+                    ul.appendChild(div);
+                }
+            });
+        }
+
+        document.getElementById('btn-criar-sala-online').addEventListener('click', () => {
+            initAudio(); tocarSom('embaralhar');
+            const novaSalaRef = db.ref('salas').push();
+            salaAtualRef = novaSalaRef;
+            
+            novaSalaRef.set({
+                adminUID: currentUser.uid,
+                nomeAdmin: jogadorApelido,
+                status: 'aguardando',
+                jogadores: {
+                    [currentUser.uid]: { nome: jogadorApelido, tipo: 'humano' }
+                }
+            }).then(() => {
+                abrirTelaEspera(novaSalaRef.key, true);
+            });
+        });
+
+        function entrarNaSala(salaId) {
+            initAudio();
+            salaAtualRef = db.ref(`salas/${salaId}`);
+            salaAtualRef.child(`jogadores/${currentUser.uid}`).set({
+                nome: jogadorApelido, tipo: 'humano'
+            }).then(() => {
+                abrirTelaEspera(salaId, false);
+            });
+        }
+
+        function abrirTelaEspera(salaId, isAdmin) {
+            document.getElementById('tela-menu').style.display = 'none';
+            document.getElementById('tela-espera-sala').style.display = 'block';
+            document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('titulo-sala').focus();
+            
+            salaAtualRef.on('value', snap => {
+                const dados = snap.val();
+                if(!dados) { irParaMenu(); return; } 
+                
+                document.getElementById('nome-dono-sala').textContent = dados.nomeAdmin;
+                
+                const ulJogadores = document.getElementById('lista-jogadores-sala');
+                ulJogadores.innerHTML = '';
+                const numJogadores = dados.jogadores ? Object.keys(dados.jogadores).length : 0;
+                document.getElementById('qtd-jogadores-sala').textContent = numJogadores;
+                
+                if(dados.jogadores) {
+                    Object.keys(dados.jogadores).forEach(uid => {
+                        const j = dados.jogadores[uid];
+                        const li = document.createElement('li');
+                        li.textContent = j.nome + (j.tipo === 'bot' ? ' (Computador)' : '');
+                        ulJogadores.appendChild(li);
+                    });
+                }
+                
+                if(dados.status === 'jogando') {
+                    falarAssertivo("A partida foi iniciada pelo administrador.");
+                }
+            });
+        }
+
+        document.getElementById('btn-add-bot').addEventListener('click', () => {
+            if(salaAtualRef) {
+                const botId = 'bot_' + Math.random().toString(36).substr(2, 9);
+                const estadoRandom = estadosBrasil[Math.floor(Math.random() * estadosBrasil.length)];
+                salaAtualRef.child(`jogadores/${botId}`).set({
+                    nome: `Bot ${estadoRandom}`,
+                    tipo: 'bot'
+                });
+                falarAssertivo(`Bot ${estadoRandom} adicionado à mesa.`);
+            }
+        });
+
+        document.getElementById('btn-sair-sala').addEventListener('click', () => {
+            if(salaAtualRef) {
+                salaAtualRef.child(`jogadores/${currentUser.uid}`).remove().then(() => {
+                    irParaMenu();
+                });
+            }
+        });
+
+        document.getElementById('btn-iniciar-online').addEventListener('click', () => {
+            falarAssertivo("Função de iniciar online pronta para a próxima etapa.");
+            if(salaAtualRef) {
+                salaAtualRef.update({ status: 'jogando' });
+            }
+        });
+
+        // --- SISTEMA LOCAL EXISTENTE MANTIDO ---
+        let serie = { alvoVitorias: 1, winsJogador: 0, winsBot: 0, quemComecaProxima: 'random' };
+        let estado = {};
+        let pecaSelecionadaIndex = -1;
+
+        function verificarSaveStatus() {
+            if (localStorage.getItem('domino_save_serie')) document.getElementById('btn-continuar-jogo').style.display = 'inline-block';
+            else document.getElementById('btn-continuar-jogo').style.display = 'none';
+        }
+
+        document.getElementById('btn-pausar').addEventListener('click', () => {
+            localStorage.setItem('domino_save_serie', JSON.stringify({ serie, estado }));
+            falarAssertivo("Série salva. Voltando ao menu.");
+            document.getElementById('tela-jogo').style.display = 'none';
+            document.getElementById('tela-menu').style.display = 'block';
+            verificarSaveStatus();
+            document.getElementById('btn-continuar-jogo').focus();
+        });
+
+        document.getElementById('btn-desistir').addEventListener('click', () => {
+            if (confirm("Desistir da partida atual? Contará como derrota.")) {
+                tocarSom('erro'); ranking.derrotas++; localStorage.setItem('domino_ranking', JSON.stringify(ranking));
+                localStorage.removeItem('domino_save_serie'); irParaMenu();
+            }
+        });
+
+        function adicionarHistorico(texto) {
+            estado.historico.push(texto);
+            document.getElementById('texto-ultima-acao').textContent = texto;
+            const li = document.createElement('li'); li.textContent = texto;
+            document.getElementById('lista-historico').prepend(li);
+        }
+
+        document.getElementById('btn-modo-local').addEventListener('click', () => {
+            initAudio(); tocarSom('embaralhar');
+            const alvo = Math.ceil(parseInt(document.getElementById('select-partidas').value) / 2);
+            serie = { alvoVitorias: alvo, winsJogador: 0, winsBot: 0, quemComecaProxima: 'random' };
+            iniciarNovaPartida(); abrirTelaJogo();
+        });
+
+        document.getElementById('btn-continuar-jogo').addEventListener('click', () => {
+            initAudio(); tocarSom('embaralhar');
+            const save = JSON.parse(localStorage.getItem('domino_save_serie'));
+            serie = save.serie; estado = save.estado;
+            reconstruirMesaVisual(); atualizarInterface(); abrirTelaJogo();
+            if (estado.turnoAtual === 'bot') setTimeout(jogadaDoBot, 2000);
+        });
+
+        function abrirTelaJogo() {
+            document.getElementById('tela-menu').style.display = 'none';
+            document.getElementById('tela-jogo').style.display = 'block';
+            document.getElementById('titulo-partida').focus();
+        }
+
+        function gerarPecas() {
+            let p = []; for (let i = 0; i <= 6; i++) { for (let j = i; j <= 6; j++) { p.push({ ladoA: i, ladoB: j }); } }
+            return p.sort(() => Math.random() - 0.5);
+        }
+
+        function nomeAcessivel(peca) { return peca.ladoA === peca.ladoB ? `Carroça de ${peca.ladoA}` : `Peça ${peca.ladoA} e ${peca.ladoB}`; }
+
+        function iniciarNovaPartida() {
+            document.getElementById('modal-fim-partida').style.display = 'none'; document.getElementById('area-mao').style.display = 'block';
+            let pecasTotais = gerarPecas();
+            let quemComeca = serie.quemComecaProxima === 'random' ? (Math.random() > 0.5 ? 'jogador' : 'bot') : serie.quemComecaProxima;
+            estado = { maoJogador: pecasTotais.splice(0, 7), maoBot: pecasTotais.splice(0, 7), monte: pecasTotais, pecasNaMesa: [], pontaEsquerda: null, pontaDireita: null, turnoAtual: quemComeca, historico: [], finalizado: false };
+            document.getElementById('area-mesa').innerHTML = '<p>A mesa está vazia.</p>'; document.getElementById('lista-historico').innerHTML = '';
+            atualizarInterface();
+            let msgInicio = `Nova partida. O sorteio definiu que ${quemComeca === 'jogador' ? 'VOCÊ' : 'A MÁQUINA'} começa.`;
+            adicionarHistorico(msgInicio); falarAssertivo(msgInicio);
+            if (quemComeca === 'bot') setTimeout(jogadaDoBot, 2500);
+        }
+
+        function reconstruirMesaVisual() {
+            document.getElementById('area-mesa').innerHTML = ''; document.getElementById('lista-historico').innerHTML = '';
+            estado.pecasNaMesa.forEach(txt => { const pElem = document.createElement('span'); pElem.className = 'peca'; pElem.textContent = txt; document.getElementById('area-mesa').appendChild(pElem); });
+            estado.historico.forEach(txt => { const li = document.createElement('li'); li.textContent = txt; document.getElementById('lista-historico').prepend(li); });
+        }
+
+        function atualizarInterface() {
+            document.getElementById('placar-jogador').textContent = serie.winsJogador; document.getElementById('placar-bot').textContent = serie.winsBot; document.getElementById('placar-alvo').textContent = serie.alvoVitorias;
+            document.getElementById('ponta-esq').textContent = estado.pontaEsquerda !== null ? estado.pontaEsquerda : 'Vazia'; document.getElementById('ponta-dir').textContent = estado.pontaDireita !== null ? estado.pontaDireita : 'Vazia';
+            document.getElementById('qtd-monte').textContent = estado.monte.length; document.getElementById('qtd-bot').textContent = estado.maoBot.length;
+            document.getElementById('texto-turno').textContent = estado.turnoAtual === 'jogador' ? 'Sua vez' : 'Vez da Máquina';
+            document.getElementById('btn-cavar').disabled = estado.turnoAtual !== 'jogador';
+            document.getElementById('area-mao').innerHTML = '';
+            estado.maoJogador.forEach((peca, index) => {
+                const btn = document.createElement('button'); btn.className = 'peca'; btn.setAttribute('aria-label', nomeAcessivel(peca));
+                btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`; btn.disabled = estado.turnoAtual !== 'jogador';
+                btn.onclick = () => processarCliquePeca(index); document.getElementById('area-mao').appendChild(btn);
+            });
+        }
+
+        function checarOpcoesDeJogada(peca) {
+            if (estado.pontaEsquerda === null && estado.pontaDireita === null) return ['primeira'];
+            let opcoes = [];
+            if (peca.ladoA === estado.pontaEsquerda || peca.ladoB === estado.pontaEsquerda) opcoes.push('esquerda');
+            if (peca.ladoA === estado.pontaDireita || peca.ladoB === estado.pontaDireita) opcoes.push('direita');
+            return opcoes;
+        }
+
+        function processarCliquePeca(index) {
+            if (estado.turnoAtual !== 'jogador' || estado.finalizado) return;
+            pecaSelecionadaIndex = index; const peca = estado.maoJogador[index]; const opcoes = checarOpcoesDeJogada(peca);
+            if (opcoes.length === 0) { tocarSom('erro'); falarAssertivo(`A ${nomeAcessivel(peca)} não encaixa.`); return; }
+            if (opcoes.length === 1 && opcoes[0] === 'primeira') executarJogada('jogador', index, opcoes[0]);
+            else if (opcoes.length === 1) executarJogada('jogador', index, opcoes[0]);
+            else {
+                document.getElementById('texto-modal-peca').textContent = `A ${nomeAcessivel(peca)} encaixa nos dois lados. Onde jogar?`;
+                document.getElementById('modal-escolha').style.display = 'block'; document.getElementById('area-mao').style.display = 'none'; document.getElementById('btn-jogar-esq').focus();
+            }
+        }
+
+        document.getElementById('btn-jogar-esq').onclick = () => fecharModalEExecutar('esquerda');
+        document.getElementById('btn-jogar-dir').onclick = () => fecharModalEExecutar('direita');
+        document.getElementById('btn-cancelar-jogada').onclick = () => { document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block'; falar("Cancelado."); };
+
+        function fecharModalEExecutar(lado) { document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block'; executarJogada('jogador', pecaSelecionadaIndex, lado); }
+
+        function executarJogada(quem, indexPeca, lado) {
+            tocarSom('jogar'); let peca = (quem === 'jogador') ? estado.maoJogador.splice(indexPeca, 1)[0] : estado.maoBot.splice(indexPeca, 1)[0];
+            if (lado === 'primeira') { estado.pontaEsquerda = peca.ladoA; estado.pontaDireita = peca.ladoB; document.getElementById('area-mesa').innerHTML = ''; }
+            else if (lado === 'esquerda') { estado.pontaEsquerda = (peca.ladoA === estado.pontaEsquerda) ? peca.ladoB : peca.ladoA; }
+            else if (lado === 'direita') { estado.pontaDireita = (peca.ladoA === estado.pontaDireita) ? peca.ladoB : peca.ladoA; }
+
+            const txtVisual = `${peca.ladoA} | ${peca.ladoB}`; const pElem = document.createElement('span'); pElem.className = 'peca'; pElem.textContent = txtVisual;
+            if (lado === 'esquerda' || lado === 'primeira') { document.getElementById('area-mesa').prepend(pElem); estado.pecasNaMesa.unshift(txtVisual); }
+            else { document.getElementById('area-mesa').appendChild(pElem); estado.pecasNaMesa.push(txtVisual); }
+
+            const txtAcao = `${quem === 'jogador' ? 'Você' : 'A Máquina'} jogou a ${nomeAcessivel(peca)} ${lado === 'primeira' ? 'no centro' : `na ponta ${lado}`}.`;
+            adicionarHistorico(txtAcao); falarAssertivo(txtAcao); localStorage.removeItem('domino_save_serie'); 
+            if (!verificarFimDePartida()) { estado.turnoAtual = estado.turnoAtual === 'jogador' ? 'bot' : 'jogador'; atualizarInterface(); if(estado.turnoAtual === 'jogador') document.getElementById('area-mao').focus(); if (estado.turnoAtual === 'bot') setTimeout(jogadaDoBot, 2500); }
+        }
+
+        document.getElementById('btn-cavar').addEventListener('click', () => {
+            initAudio(); let temValida = estado.maoJogador.some(p => checarOpcoesDeJogada(p).length > 0 && checarOpcoesDeJogada(p)[0] !== 'primeira');
+            if (estado.pontaEsquerda === null) temValida = true;
+            if (temValida) { tocarSom('erro'); falarAssertivo("Ação bloqueada! Tem pedra válida na mão."); return; }
+            if (estado.monte.length === 0) { falarAssertivo("Monte vazio. Passando a vez."); estado.turnoAtual='bot'; atualizarInterface(); setTimeout(jogadaDoBot, 2500); return; }
+            const p = estado.monte.shift(); estado.maoJogador.push(p); falarAssertivo(`Comprou a ${nomeAcessivel(p)}.`); atualizarInterface();
+        });
+
+        function jogadaDoBot() {
+            if(estado.finalizado) return;
+            for (let i = 0; i < estado.maoBot.length; i++) {
+                const opcoes = checarOpcoesDeJogada(estado.maoBot[i]);
+                if (opcoes.length > 0) { executarJogada('bot', i, opcoes[0]); return; }
+            }
+            if (estado.monte.length > 0) { estado.maoBot.push(estado.monte.shift()); setTimeout(jogadaDoBot, 1500); }
+            else { falarAssertivo("Máquina não tem peça e passou."); estado.turnoAtual='jogador'; atualizarInterface(); document.getElementById('area-mao').focus(); }
+        }
+
+        function verificarFimDePartida() {
+            if (estado.maoJogador.length === 0 || estado.maoBot.length === 0) {
+                const vencedor = estado.maoJogador.length === 0 ? 'jogador' : 'bot';
+                estado.finalizado = true; document.getElementById('area-mao').style.display = 'none';
+                if (vencedor === 'jogador') { tocarSom('vitoria'); serie.winsJogador++; serie.quemComecaProxima = 'jogador'; falarAssertivo("Você venceu!"); }
+                else { tocarSom('erro'); serie.winsBot++; serie.quemComecaProxima = 'bot'; falarAssertivo("Máquina venceu."); }
+                
+                atualizarInterface(); const txtResultado = document.getElementById('texto-resultado-partida'); const modalFim = document.getElementById('modal-fim-partida');
+                modalFim.style.display = 'block';
+                
+                if (serie.winsJogador >= serie.alvoVitorias || serie.winsBot >= serie.alvoVitorias) {
+                    txtResultado.innerHTML = `<strong>SÉRIE CONCLUÍDA!</strong>`; document.getElementById('btn-proxima-partida').style.display = 'none'; document.getElementById('btn-encerrar-serie').style.display = 'inline-block';
+                    vencedor === 'jogador' ? ranking.vitorias++ : ranking.derrotas++; localStorage.setItem('domino_ranking', JSON.stringify(ranking));
+                } else {
+                    txtResultado.textContent = `Você ${serie.winsJogador} x ${serie.winsBot} Máquina.`; document.getElementById('btn-proxima-partida').style.display = 'inline-block'; document.getElementById('btn-encerrar-serie').style.display = 'none';
+                }
+                modalFim.focus(); return true;
+            }
+            return false;
+        }
+
+        document.getElementById('btn-proxima-partida').addEventListener('click', iniciarNovaPartida);
+        document.getElementById('btn-encerrar-serie').addEventListener('click', irParaMenu);
+    </script>
+</body>
+</html>
+
