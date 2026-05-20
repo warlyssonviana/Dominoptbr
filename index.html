@@ -40,7 +40,7 @@
         .ranking-box { border: 1px dashed var(--border-color); padding: 15px; margin-bottom: 15px; background-color: var(--bg-color); }
 
         details { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
-        summary { font-weight: bold; cursor: pointer; padding: 5px; }
+        summary { font-weight: bold; cursor: pointer; padding: 10px; background-color: var(--card-bg); border-radius: 4px; }
         #lista-historico { list-style-type: none; padding-left: 0; max-height: 150px; overflow-y: auto; }
         #lista-historico li { padding: 5px 0; border-bottom: 1px dashed var(--border-color); }
 
@@ -48,7 +48,7 @@
         #secao-mesa { flex: 1; border-bottom: 2px dashed var(--border-color); padding-bottom: 15px; min-height: 30vh; }
         #secao-mao { flex: 1; padding-top: 15px; min-height: 30vh; }
         
-        .chat-container { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
+        .chat-container { margin-top: 15px; }
         .lista-mensagens { max-height: 150px; overflow-y: auto; list-style: none; padding: 0; margin-bottom: 10px; border: 1px inset var(--border-color); background: var(--card-bg); padding: 5px;}
         .lista-mensagens li { padding: 5px; border-bottom: 1px dotted var(--border-color); }
         
@@ -133,7 +133,7 @@
                 <button id="btn-fechar-criar-sala" class="btn-secundario">Cancelar</button>
             </div>
 
-            <div id="lista-salas-online" class="chat-container">
+            <div id="lista-salas-online" class="ranking-box" style="margin-top: 20px;">
                 <h3>Mesas Disponíveis</h3>
                 <div id="ul-salas" aria-live="polite">
                     <p>Nenhuma sala aberta.</p>
@@ -151,7 +151,7 @@
                 <p>Telespectadores: <span id="qtd-telespectadores">0</span></p>
             </div>
             
-            <div id="controles-admin-sala" style="display: none;" class="chat-container">
+            <div id="controles-admin-sala" style="display: none;" class="ranking-box">
                 <h3>Administração da Mesa</h3>
                 <button id="btn-add-bot">Adicionar Bot</button>
                 <button id="btn-iniciar-online">Iniciar Partida</button>
@@ -160,14 +160,16 @@
                 </div>
             </div>
             
-            <div class="chat-container">
-                <h3>Chat da Mesa</h3>
+            <details id="detalhes-chat-sala" class="chat-container">
+                <summary>Chat da Mesa (Clique para expandir/recolher)</summary>
                 <ul id="lista-chat-sala" class="lista-mensagens" aria-live="polite"></ul>
-                <input type="text" id="input-chat-sala" placeholder="Digite sua mensagem...">
-                <button id="btn-enviar-chat-sala">Enviar Mensagem</button>
-            </div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <input type="text" id="input-chat-sala" placeholder="Digite sua mensagem...">
+                    <button id="btn-enviar-chat-sala">Enviar Mensagem</button>
+                </div>
+            </details>
 
-            <button id="btn-sair-sala" class="btn-perigo">Sair da Mesa</button>
+            <button id="btn-sair-sala" class="btn-perigo" style="margin-top: 20px;">Sair da Mesa</button>
         </main>
 
         <main id="tela-jogo" style="display: none;" aria-hidden="true">
@@ -200,12 +202,14 @@
                 <button id="btn-desistir" class="btn-perigo">Desistir / Sair</button>
             </section>
             
-            <div class="chat-container" id="container-chat-jogo">
-                <h3>Chat da Partida</h3>
+            <details id="detalhes-chat-jogo" class="chat-container">
+                <summary>Chat da Partida (Clique para expandir/recolher)</summary>
                 <ul id="lista-chat-jogo" class="lista-mensagens" aria-live="polite"></ul>
-                <input type="text" id="input-chat-jogo" placeholder="Digite sua mensagem...">
-                <button id="btn-enviar-chat-jogo">Enviar Mensagem</button>
-            </div>
+                <div class="form-group" style="margin-top: 10px;">
+                    <input type="text" id="input-chat-jogo" placeholder="Digite sua mensagem...">
+                    <button id="btn-enviar-chat-jogo">Enviar Mensagem</button>
+                </div>
+            </details>
 
             <details id="detalhes-historico">
                 <summary>Histórico de Jogadas do Servidor</summary>
@@ -484,7 +488,9 @@
             isOnlineMode = true;
             document.getElementById('tela-menu').style.display = 'none';
             document.getElementById('tela-espera-sala').style.display = 'block';
+            
             document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
+            document.getElementById('btn-sair-sala').textContent = isAdmin ? 'Excluir Mesa e Sair' : 'Sair da Mesa';
             document.getElementById('titulo-sala').focus();
             
             escutarChat(salaId);
@@ -531,8 +537,12 @@
 
         document.getElementById('btn-sair-sala').addEventListener('click', () => {
             if(salaAtualRef) {
-                if(isAdminSala) { salaAtualRef.remove(); db.ref(`chats/${salaAtualRef.key}`).remove(); }
-                else { salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); }
+                if(isAdminSala) { 
+                    salaAtualRef.remove(); 
+                    db.ref(`chats/${salaAtualRef.key}`).remove(); 
+                } else { 
+                    salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); 
+                }
                 irParaMenu();
             }
         });
@@ -541,6 +551,8 @@
             if(salaAtualRef) {
                 salaAtualRef.once('value').then(snap => {
                     const sala = snap.val();
+                    if(!sala || !sala.jogadores) return;
+                    
                     const playersIds = Object.keys(sala.jogadores).filter(uid => sala.jogadores[uid].isOcupante);
                     if(playersIds.length < 2) { falarAssertivo("Mínimo de 2 jogadores ocupando a mesa."); return; }
                     
@@ -551,8 +563,12 @@
                     salaAtualRef.update({
                         status: 'jogando',
                         estadoJogo: {
-                            maos: maos, monte: pecas, pecasNaMesa: [], historico: ["A partida online começou."],
-                            pontaEsq: null, pontaDir: null, turnoAtual: playersIds[0]
+                            maos: maos, 
+                            monte: pecas, 
+                            historico: ["A partida online começou."],
+                            pontaEsq: "Vazia", 
+                            pontaDir: "Vazia", 
+                            turnoAtual: playersIds[0]
                         }
                     });
                 });
@@ -573,8 +589,8 @@
                     if(!jogo) return;
                     
                     document.getElementById('qtd-monte').textContent = jogo.monte ? jogo.monte.length : 0;
-                    document.getElementById('ponta-esq').textContent = jogo.pontaEsq !== null ? jogo.pontaEsq : 'Vazia';
-                    document.getElementById('ponta-dir').textContent = jogo.pontaDir !== null ? jogo.pontaDir : 'Vazia';
+                    document.getElementById('ponta-esq').textContent = jogo.pontaEsq !== "Vazia" ? jogo.pontaEsq : 'Vazia';
+                    document.getElementById('ponta-dir').textContent = jogo.pontaDir !== "Vazia" ? jogo.pontaDir : 'Vazia';
                     
                     const areaMesa = document.getElementById('area-mesa'); areaMesa.innerHTML = '';
                     if(jogo.pecasNaMesa) {
@@ -593,6 +609,8 @@
                     
                     salaAtualRef.child(`jogadores/${jogo.turnoAtual}`).once('value').then(pSnap => {
                         const donoTurno = pSnap.val();
+                        if(!donoTurno) return;
+                        
                         const isMinhaVez = jogo.turnoAtual === currentUser.uid;
                         document.getElementById('texto-turno').textContent = isMinhaVez ? "SUA VEZ" : `Vez de ${donoTurno.nome}`;
                         
@@ -618,10 +636,13 @@
 
         // --- LÓGICA ONLINE JOGADAS ---
         function checarOpcoesPeca(peca, pEsq, pDir) {
-            if (pEsq === null && pDir === null) return ['primeira'];
+            let trueEsq = pEsq === "Vazia" ? null : parseInt(pEsq);
+            let trueDir = pDir === "Vazia" ? null : parseInt(pDir);
+            
+            if (trueEsq === null && trueDir === null) return ['primeira'];
             let opcoes = [];
-            if (peca.ladoA === pEsq || peca.ladoB === pEsq) opcoes.push('esquerda');
-            if (peca.ladoA === pDir || peca.ladoB === pDir) opcoes.push('direita');
+            if (peca.ladoA === trueEsq || peca.ladoB === trueEsq) opcoes.push('esquerda');
+            if (peca.ladoA === trueDir || peca.ladoB === trueDir) opcoes.push('direita');
             return opcoes;
         }
 
@@ -655,9 +676,12 @@
             tocarSom('jogar');
             jogo.maos[uid].splice(indexPeca, 1);
             
+            let trueEsq = jogo.pontaEsq === "Vazia" ? null : parseInt(jogo.pontaEsq);
+            let trueDir = jogo.pontaDir === "Vazia" ? null : parseInt(jogo.pontaDir);
+
             if (lado === 'primeira') { jogo.pontaEsq = peca.ladoA; jogo.pontaDir = peca.ladoB; }
-            else if (lado === 'esquerda') { jogo.pontaEsq = (peca.ladoA === jogo.pontaEsq) ? peca.ladoB : peca.ladoA; }
-            else if (lado === 'direita') { jogo.pontaDir = (peca.ladoA === jogo.pontaDir) ? peca.ladoB : peca.ladoA; }
+            else if (lado === 'esquerda') { jogo.pontaEsq = (peca.ladoA === trueEsq) ? peca.ladoB : peca.ladoA; }
+            else if (lado === 'direita') { jogo.pontaDir = (peca.ladoA === trueDir) ? peca.ladoB : peca.ladoA; }
 
             const txtVisual = `${peca.ladoA} | ${peca.ladoB}`;
             if(!jogo.pecasNaMesa) jogo.pecasNaMesa = [];
@@ -675,7 +699,7 @@
                     const jogo = snap.val();
                     if(jogo.turnoAtual !== currentUser.uid) return;
                     let temValida = (jogo.maos[currentUser.uid]||[]).some(p => checarOpcoesPeca(p, jogo.pontaEsq, jogo.pontaDir).length > 0);
-                    if(jogo.pontaEsq === null) temValida = true;
+                    if(jogo.pontaEsq === "Vazia") temValida = true;
                     if(temValida) { tocarSom('erro'); falarAssertivo("Bloqueado! Tem pedra válida na mão."); return; }
                     
                     if(!jogo.monte || jogo.monte.length === 0) {
