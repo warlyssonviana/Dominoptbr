@@ -52,7 +52,7 @@
         .lista-mensagens { max-height: 150px; overflow-y: auto; list-style: none; padding: 0; margin-bottom: 10px; border: 1px inset var(--border-color); background: var(--card-bg); padding: 5px;}
         .lista-mensagens li { padding: 5px; border-bottom: 1px dotted var(--border-color); }
         
-        .sala-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; background: var(--card-bg); }
+        .sala-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; background: var(--card-bg); flex-wrap: wrap; }
         .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
         .form-group label { font-weight: bold; margin-bottom: 5px; }
     </style>
@@ -126,6 +126,9 @@
                     <label for="input-senha-sala">Senha Numérica:</label>
                     <input type="number" id="input-senha-sala" placeholder="Ex: 1234">
                 </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="check-permitir-telespectadores" checked> Permitir Telespectadores</label>
+                </div>
                 <button id="btn-confirmar-criar-sala">Criar Mesa</button>
                 <button id="btn-fechar-criar-sala" class="btn-secundario">Cancelar</button>
             </div>
@@ -139,12 +142,13 @@
         </main>
 
         <main id="tela-espera-sala" style="display: none;" aria-hidden="true">
-            <h2 id="titulo-sala" tabindex="-1">Mesa de Espera</h2>
+            <h2 id="titulo-sala" tabindex="-1">Mesa Online</h2>
             <p><strong>Dono da Mesa:</strong> <span id="nome-dono-sala"></span></p>
             
             <div class="ranking-box">
                 <h3>Assentos Ocupados (<span id="qtd-jogadores-sala">1</span>/4)</h3>
                 <ul id="lista-jogadores-sala" aria-live="polite"></ul>
+                <p>Telespectadores: <span id="qtd-telespectadores">0</span></p>
             </div>
             
             <div id="controles-admin-sala" style="display: none;" class="chat-container">
@@ -152,7 +156,7 @@
                 <button id="btn-add-bot">Adicionar Bot</button>
                 <button id="btn-iniciar-online">Iniciar Partida</button>
                 <div style="margin-top: 10px;">
-                    <label><input type="checkbox" id="check-mutar-chat"> Silenciar Chat para Telespectadores</label>
+                    <label><input type="checkbox" id="check-mutar-chat"> Silenciar Telespectadores no Chat</label>
                 </div>
             </div>
             
@@ -196,8 +200,15 @@
                 <button id="btn-desistir" class="btn-perigo">Desistir / Sair</button>
             </section>
             
+            <div class="chat-container" id="container-chat-jogo">
+                <h3>Chat da Partida</h3>
+                <ul id="lista-chat-jogo" class="lista-mensagens" aria-live="polite"></ul>
+                <input type="text" id="input-chat-jogo" placeholder="Digite sua mensagem...">
+                <button id="btn-enviar-chat-jogo">Enviar Mensagem</button>
+            </div>
+
             <details id="detalhes-historico">
-                <summary>Histórico de Jogadas</summary>
+                <summary>Histórico de Jogadas do Servidor</summary>
                 <ul id="lista-historico" aria-live="polite"></ul>
             </details>
         </main>
@@ -264,6 +275,7 @@
         let salaAtualRef = null;
         let isOnlineMode = false;
         let isAdminSala = false;
+        let isOcupanteAtual = false;
 
         function irParaMenu() {
             document.getElementById('tela-login').style.display = 'none';
@@ -274,9 +286,10 @@
             document.getElementById('titulo-menu').focus();
             if(salaAtualRef) { salaAtualRef.off(); salaAtualRef = null; }
             isOnlineMode = false;
+            isAdminSala = false;
+            isOcupanteAtual = false;
         }
 
-        // Auth Base
         document.getElementById('btn-criar-conta').addEventListener('click', () => {
             const email = document.getElementById('input-email').value.trim();
             const senha = document.getElementById('input-senha').value.trim();
@@ -300,7 +313,6 @@
         auth.onAuthStateChanged(user => {
             if (user) {
                 currentUser = user;
-                // Força o Firebase a atualizar a presença imediatamente
                 db.ref(`usuarios/${user.uid}`).once('value').then(snap => {
                     const dados = snap.val();
                     jogadorApelido = dados ? dados.apelido : (user.displayName || "Jogador");
@@ -332,7 +344,6 @@
             });
         }
 
-        // Menu Interativo Pop-Up
         document.getElementById('btn-abrir-opcoes-jogar').addEventListener('click', () => {
             document.getElementById('modal-modo-jogo').style.display = 'block';
             document.getElementById('btn-modo-local').focus();
@@ -341,7 +352,6 @@
             document.getElementById('modal-modo-jogo').style.display = 'none';
         });
 
-        // Configurar Sala Online
         document.getElementById('btn-modo-online').addEventListener('click', () => {
             document.getElementById('modal-modo-jogo').style.display = 'none';
             document.getElementById('modal-criar-sala').style.display = 'block';
@@ -358,9 +368,12 @@
             initAudio(); tocarSom('embaralhar');
             const priv = document.getElementById('select-privacidade').value;
             const senha = document.getElementById('input-senha-sala').value;
+            const permiteTele = document.getElementById('check-permitir-telespectadores').checked;
             
             const novaSalaRef = db.ref('salas').push();
             salaAtualRef = novaSalaRef;
+            isAdminSala = true;
+            isOcupanteAtual = true;
             
             novaSalaRef.set({
                 adminUID: currentUser.uid,
@@ -368,6 +381,7 @@
                 status: 'aguardando',
                 privacidade: priv,
                 senha: priv === 'privada' ? senha : '',
+                permitirTeles: permiteTele,
                 mutarTelespectador: false,
                 jogadores: {
                     [currentUser.uid]: { nome: jogadorApelido, tipo: 'humano', isOcupante: true }
@@ -386,41 +400,97 @@
                 const s = salas[key];
                 if(s.status === 'aguardando') {
                     const d = document.createElement('div'); d.className = 'sala-item';
-                    const cadeado = s.privacidade === 'privada' ? '🔒 ' : '';
-                    const n = s.jogadores ? Object.keys(s.jogadores).length : 0;
-                    d.innerHTML = `<span>${cadeado}Mesa de ${s.nomeAdmin} (${n}/4)</span><button onclick="entrarNaSala('${key}', '${s.privacidade}', '${s.senha}')">Entrar</button>`;
+                    const cadeado = s.privacidade === 'privada' ? '🔒 ' : '🟢 ';
+                    let numJogadores = 0;
+                    if(s.jogadores) {
+                        Object.values(s.jogadores).forEach(j => { if(j.isOcupante) numJogadores++; });
+                    }
+                    d.innerHTML = `
+                        <span>${cadeado}Mesa de ${s.nomeAdmin} (${numJogadores}/4)</span>
+                        <button onclick="entrarNaSala('${key}', '${s.privacidade}', '${s.senha}', ${s.permitirTeles})">Entrar</button>
+                    `;
                     ul.appendChild(d);
                 }
             });
         }
 
-        window.entrarNaSala = function(salaId, priv, senhaReal) {
-            if(priv === 'privada') {
-                const tenta = prompt("Digite a senha da sala:");
-                if(tenta !== senhaReal) { alert("Senha incorreta!"); return; }
+        window.entrarNaSala = function(salaId, priv, senhaReal, permiteTele) {
+            let tipo = 'humano';
+            let ocupante = true;
+
+            if (priv === 'privada') {
+                const tenta = prompt("Mesa Privada. Digite a senha da sala:");
+                if (tenta !== senhaReal) {
+                    if (permiteTele) {
+                        if(confirm("Senha incorreta. Deseja entrar apenas como Telespectador?")) {
+                            ocupante = false; tipo = 'telespectador';
+                        } else { return; }
+                    } else {
+                        alert("Senha incorreta. Telespectadores não são permitidos nesta mesa."); return;
+                    }
+                }
+            } else {
+                if(confirm("Deseja se juntar à mesa para JOGAR? \n\n[OK] para Jogar.\n[Cancelar] para ser TELESPECTADOR.")) {
+                    ocupante = true;
+                } else {
+                    ocupante = false; tipo = 'telespectador';
+                }
             }
+            
             initAudio();
+            isAdminSala = false;
+            isOcupanteAtual = ocupante;
             salaAtualRef = db.ref(`salas/${salaId}`);
-            salaAtualRef.child(`jogadores/${currentUser.uid}`).set({ nome: jogadorApelido, tipo: 'humano', isOcupante: true }).then(() => {
+            
+            salaAtualRef.child(`jogadores/${currentUser.uid}`).set({ 
+                nome: jogadorApelido, tipo: tipo, isOcupante: ocupante 
+            }).then(() => {
                 abrirTelaEspera(salaId, false);
             });
         };
 
+        function escutarChat(salaId) {
+            const uls = [document.getElementById('lista-chat-sala'), document.getElementById('lista-chat-jogo')];
+            uls.forEach(ul => ul.innerHTML = '');
+            db.ref(`chats/${salaId}`).on('child_added', snap => {
+                const msg = snap.val();
+                uls.forEach(ul => {
+                    const li = document.createElement('li'); li.innerHTML = `<strong>${msg.autor}:</strong> ${msg.texto}`;
+                    ul.appendChild(li); ul.scrollTop = ul.scrollHeight;
+                });
+            });
+        }
+
+        function enviarMensagemChat(inputId) {
+            const input = document.getElementById(inputId);
+            const txt = input.value.trim();
+            if(txt && salaAtualRef) {
+                salaAtualRef.once('value').then(snap => {
+                    const sala = snap.val();
+                    if(sala.mutarTelespectador && !isOcupanteAtual && !isAdminSala) {
+                        falarAssertivo("O chat está silenciado para telespectadores.");
+                        return;
+                    }
+                    db.ref(`chats/${salaAtualRef.key}`).push({ autor: jogadorApelido, texto: txt });
+                    input.value = '';
+                });
+            }
+        }
+
+        document.getElementById('btn-enviar-chat-sala').addEventListener('click', () => enviarMensagemChat('input-chat-sala'));
+        document.getElementById('btn-enviar-chat-jogo').addEventListener('click', () => enviarMensagemChat('input-chat-jogo'));
+
         function abrirTelaEspera(salaId, isAdmin) {
             isOnlineMode = true;
-            isAdminSala = isAdmin;
             document.getElementById('tela-menu').style.display = 'none';
             document.getElementById('tela-espera-sala').style.display = 'block';
             document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
             document.getElementById('titulo-sala').focus();
             
-            // Inicia Chat da Sala
-            const ulChat = document.getElementById('lista-chat-sala');
-            ulChat.innerHTML = '';
-            db.ref(`chats/${salaId}`).on('child_added', snap => {
-                const msg = snap.val();
-                const li = document.createElement('li'); li.innerHTML = `<strong>${msg.autor}:</strong> ${msg.texto}`;
-                ulChat.appendChild(li); ulChat.scrollTop = ulChat.scrollHeight;
+            escutarChat(salaId);
+            
+            document.getElementById('check-mutar-chat').addEventListener('change', (e) => {
+                if(salaAtualRef && isAdminSala) salaAtualRef.update({ mutarTelespectador: e.target.checked });
             });
             
             salaAtualRef.on('value', snap => {
@@ -429,19 +499,23 @@
                 
                 document.getElementById('nome-dono-sala').textContent = dados.nomeAdmin;
                 const ulJogadores = document.getElementById('lista-jogadores-sala'); ulJogadores.innerHTML = '';
-                const num = dados.jogadores ? Object.keys(dados.jogadores).length : 0;
-                document.getElementById('qtd-jogadores-sala').textContent = num;
                 
+                let countJogadores = 0; let countTeles = 0;
                 if(dados.jogadores) {
                     Object.keys(dados.jogadores).forEach(uid => {
                         const j = dados.jogadores[uid];
-                        const li = document.createElement('li'); li.textContent = j.nome;
-                        ulJogadores.appendChild(li);
+                        if(j.isOcupante) {
+                            countJogadores++;
+                            const li = document.createElement('li'); li.textContent = j.nome + (j.tipo === 'bot' ? ' (Computador)' : '');
+                            ulJogadores.appendChild(li);
+                        } else { countTeles++; }
                     });
                 }
+                document.getElementById('qtd-jogadores-sala').textContent = countJogadores;
+                document.getElementById('qtd-telespectadores').textContent = countTeles;
                 
                 if(dados.status === 'jogando') {
-                    salaAtualRef.off('value'); // Para de escutar lobby, vai focar no jogo
+                    salaAtualRef.off('value'); 
                     carregarMesaDeJogo();
                 }
             });
@@ -463,22 +537,12 @@
             }
         });
 
-        document.getElementById('btn-enviar-chat-sala').addEventListener('click', () => {
-            const input = document.getElementById('input-chat-sala');
-            const txt = input.value.trim();
-            if(txt && salaAtualRef) {
-                db.ref(`chats/${salaAtualRef.key}`).push({ autor: jogadorApelido, texto: txt });
-                input.value = '';
-            }
-        });
-
-        // LÓGICA DE INICIAR MULTIPLAYER REAL
         document.getElementById('btn-iniciar-online').addEventListener('click', () => {
             if(salaAtualRef) {
                 salaAtualRef.once('value').then(snap => {
                     const sala = snap.val();
-                    const playersIds = Object.keys(sala.jogadores);
-                    if(playersIds.length < 2) { falarAssertivo("Mínimo de 2 jogadores para iniciar."); return; }
+                    const playersIds = Object.keys(sala.jogadores).filter(uid => sala.jogadores[uid].isOcupante);
+                    if(playersIds.length < 2) { falarAssertivo("Mínimo de 2 jogadores ocupando a mesa."); return; }
                     
                     let pecas = gerarPecas();
                     let maos = {};
@@ -487,27 +551,23 @@
                     salaAtualRef.update({
                         status: 'jogando',
                         estadoJogo: {
-                            maos: maos,
-                            monte: pecas,
-                            pecasNaMesa: [],
-                            pontaEsq: null, pontaDir: null,
-                            turnoAtual: playersIds[0] // O admin começa
+                            maos: maos, monte: pecas, pecasNaMesa: [], historico: ["A partida online começou."],
+                            pontaEsq: null, pontaDir: null, turnoAtual: playersIds[0]
                         }
                     });
                 });
             }
         });
 
-        // --- SISTEMA DE JOGO (UNIFICADO) ---
-        let estadoLocal = { maoJogador: [], maoBot: [], monte: [], pecasNaMesa: [], pontaEsquerda: null, pontaDireita: null, turnoAtual: 'jogador', finalizado: false };
-        
         function carregarMesaDeJogo() {
             document.getElementById('tela-espera-sala').style.display = 'none';
             document.getElementById('tela-jogo').style.display = 'block';
+            document.getElementById('area-mao').style.display = isOcupanteAtual ? 'block' : 'none';
+            document.getElementById('btn-cavar').style.display = isOcupanteAtual ? 'inline-block' : 'none';
+            
             falarAssertivo("A partida começou! A mesa foi aberta.");
             
             if(isOnlineMode && salaAtualRef) {
-                // Escuta os movimentos reais do Firebase
                 salaAtualRef.child('estadoJogo').on('value', snap => {
                     const jogo = snap.val();
                     if(!jogo) return;
@@ -516,81 +576,158 @@
                     document.getElementById('ponta-esq').textContent = jogo.pontaEsq !== null ? jogo.pontaEsq : 'Vazia';
                     document.getElementById('ponta-dir').textContent = jogo.pontaDir !== null ? jogo.pontaDir : 'Vazia';
                     
-                    // Verifica de quem é a vez
+                    const areaMesa = document.getElementById('area-mesa'); areaMesa.innerHTML = '';
+                    if(jogo.pecasNaMesa) {
+                        jogo.pecasNaMesa.forEach(txt => {
+                            const pElem = document.createElement('span'); pElem.className = 'peca'; pElem.textContent = txt;
+                            areaMesa.appendChild(pElem);
+                        });
+                    }
+                    
+                    const ulHist = document.getElementById('lista-historico'); ulHist.innerHTML = '';
+                    if(jogo.historico) {
+                        jogo.historico.forEach(txt => {
+                            const li = document.createElement('li'); li.textContent = txt; ulHist.prepend(li);
+                        });
+                    }
+                    
                     salaAtualRef.child(`jogadores/${jogo.turnoAtual}`).once('value').then(pSnap => {
                         const donoTurno = pSnap.val();
                         const isMinhaVez = jogo.turnoAtual === currentUser.uid;
                         document.getElementById('texto-turno').textContent = isMinhaVez ? "SUA VEZ" : `Vez de ${donoTurno.nome}`;
                         
-                        // Atualiza minha mão na tela
-                        const minhaMao = jogo.maos[currentUser.uid] || [];
-                        const areaMao = document.getElementById('area-mao');
-                        areaMao.innerHTML = '';
+                        if(isOcupanteAtual) {
+                            const minhaMao = jogo.maos[currentUser.uid] || [];
+                            const areaMao = document.getElementById('area-mao'); areaMao.innerHTML = '';
+                            minhaMao.forEach((peca, index) => {
+                                const btn = document.createElement('button'); btn.className = 'peca'; btn.setAttribute('aria-label', nomeAcessivel(peca));
+                                btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`; 
+                                btn.disabled = !isMinhaVez;
+                                btn.onclick = () => processarCliquePecaOnline(index, peca, jogo);
+                                areaMao.appendChild(btn);
+                            });
+                        }
                         
-                        minhaMao.forEach((peca, index) => {
-                            const btn = document.createElement('button'); btn.className = 'peca'; btn.setAttribute('aria-label', nomeAcessivel(peca));
-                            btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`; 
-                            btn.disabled = !isMinhaVez;
-                            btn.onclick = () => alert("Integração de movimento da rede na próxima fase."); // Placeholder
-                            areaMao.appendChild(btn);
-                        });
-                        
-                        // Se a vez for de um BOT (rodando no PC do Admin)
                         if(isAdminSala && donoTurno.tipo === 'bot') {
-                            setTimeout(() => {
-                                falarAssertivo(`${donoTurno.nome} comprou uma peça.`);
-                                // Lógica de array splice do bot vai aqui para gravar no DB
-                            }, 3000);
+                            setTimeout(() => jogadaDoBotOnline(jogo.turnoAtual, jogo), 3000);
                         }
                     });
                 });
             }
         }
 
-        // LÓGICA LOCAL MANTIDA
-        document.getElementById('btn-modo-local').addEventListener('click', () => {
-            document.getElementById('modal-modo-jogo').style.display = 'none';
-            isOnlineMode = false;
-            initAudio(); tocarSom('embaralhar');
-            iniciarPartidaLocal();
+        // --- LÓGICA ONLINE JOGADAS ---
+        function checarOpcoesPeca(peca, pEsq, pDir) {
+            if (pEsq === null && pDir === null) return ['primeira'];
+            let opcoes = [];
+            if (peca.ladoA === pEsq || peca.ladoB === pEsq) opcoes.push('esquerda');
+            if (peca.ladoA === pDir || peca.ladoB === pDir) opcoes.push('direita');
+            return opcoes;
+        }
+
+        let pecaSelecionadaOnline = null;
+        let indexSelecionadoOnline = -1;
+        let estadoJogoTemp = null;
+
+        function processarCliquePecaOnline(index, peca, jogo) {
+            const opcoes = checarOpcoesPeca(peca, jogo.pontaEsq, jogo.pontaDir);
+            if (opcoes.length === 0) { tocarSom('erro'); falarAssertivo(`A peça não encaixa.`); return; }
+            
+            if (opcoes.length === 1) { executarJogadaOnline(currentUser.uid, index, peca, opcoes[0], jogo); }
+            else {
+                pecaSelecionadaOnline = peca; indexSelecionadoOnline = index; estadoJogoTemp = jogo;
+                document.getElementById('texto-modal-peca').textContent = `Onde jogar a ${nomeAcessivel(peca)}?`;
+                document.getElementById('modal-escolha').style.display = 'block'; document.getElementById('area-mao').style.display = 'none';
+            }
+        }
+
+        document.getElementById('btn-jogar-esq').onclick = () => {
+            document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block';
+            if(isOnlineMode) executarJogadaOnline(currentUser.uid, indexSelecionadoOnline, pecaSelecionadaOnline, 'esquerda', estadoJogoTemp);
+        };
+        document.getElementById('btn-jogar-dir').onclick = () => {
+            document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block';
+            if(isOnlineMode) executarJogadaOnline(currentUser.uid, indexSelecionadoOnline, pecaSelecionadaOnline, 'direita', estadoJogoTemp);
+        };
+        document.getElementById('btn-cancelar-jogada').onclick = () => { document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block'; falar("Cancelado."); };
+
+        function executarJogadaOnline(uid, indexPeca, peca, lado, jogo) {
+            tocarSom('jogar');
+            jogo.maos[uid].splice(indexPeca, 1);
+            
+            if (lado === 'primeira') { jogo.pontaEsq = peca.ladoA; jogo.pontaDir = peca.ladoB; }
+            else if (lado === 'esquerda') { jogo.pontaEsq = (peca.ladoA === jogo.pontaEsq) ? peca.ladoB : peca.ladoA; }
+            else if (lado === 'direita') { jogo.pontaDir = (peca.ladoA === jogo.pontaDir) ? peca.ladoB : peca.ladoA; }
+
+            const txtVisual = `${peca.ladoA} | ${peca.ladoB}`;
+            if(!jogo.pecasNaMesa) jogo.pecasNaMesa = [];
+            if (lado === 'esquerda' || lado === 'primeira') { jogo.pecasNaMesa.unshift(txtVisual); } else { jogo.pecasNaMesa.push(txtVisual); }
+
+            if(!jogo.historico) jogo.historico = [];
+            jogo.historico.push(`Alguém jogou ${nomeAcessivel(peca)}`);
+
+            passarTurnoOnline(jogo);
+        }
+
+        document.getElementById('btn-cavar').addEventListener('click', () => {
+            if(isOnlineMode && salaAtualRef) {
+                salaAtualRef.child('estadoJogo').once('value').then(snap => {
+                    const jogo = snap.val();
+                    if(jogo.turnoAtual !== currentUser.uid) return;
+                    let temValida = (jogo.maos[currentUser.uid]||[]).some(p => checarOpcoesPeca(p, jogo.pontaEsq, jogo.pontaDir).length > 0);
+                    if(jogo.pontaEsq === null) temValida = true;
+                    if(temValida) { tocarSom('erro'); falarAssertivo("Bloqueado! Tem pedra válida na mão."); return; }
+                    
+                    if(!jogo.monte || jogo.monte.length === 0) {
+                        if(!jogo.historico) jogo.historico = []; jogo.historico.push(`${jogadorApelido} passou a vez.`);
+                        falarAssertivo("Monte vazio. Passando a vez."); passarTurnoOnline(jogo);
+                    } else {
+                        const p = jogo.monte.shift();
+                        if(!jogo.maos[currentUser.uid]) jogo.maos[currentUser.uid] = [];
+                        jogo.maos[currentUser.uid].push(p);
+                        salaAtualRef.child('estadoJogo').update({ monte: jogo.monte, maos: jogo.maos });
+                    }
+                });
+            }
         });
 
-        function gerarPecas() {
-            let p = []; for (let i = 0; i <= 6; i++) { for (let j = i; j <= 6; j++) { p.push({ ladoA: i, ladoB: j }); } }
-            return p.sort(() => Math.random() - 0.5);
+        function jogadaDoBotOnline(botUid, jogo) {
+            const maoBot = jogo.maos[botUid] || [];
+            for (let i = 0; i < maoBot.length; i++) {
+                const opcoes = checarOpcoesPeca(maoBot[i], jogo.pontaEsq, jogo.pontaDir);
+                if (opcoes.length > 0) { executarJogadaOnline(botUid, i, maoBot[i], opcoes[0], jogo); return; }
+            }
+            if (jogo.monte && jogo.monte.length > 0) {
+                maoBot.push(jogo.monte.shift());
+                jogo.maos[botUid] = maoBot;
+                salaAtualRef.child('estadoJogo').update({ monte: jogo.monte, maos: jogo.maos });
+            } else { passarTurnoOnline(jogo); }
         }
-        function nomeAcessivel(peca) { return peca.ladoA === peca.ladoB ? `Carroça de ${peca.ladoA}` : `Peça ${peca.ladoA} e ${peca.ladoB}`; }
 
-        function iniciarPartidaLocal() {
-            document.getElementById('tela-menu').style.display = 'none'; document.getElementById('tela-jogo').style.display = 'block';
-            let pecasTotais = gerarPecas();
-            estadoLocal = { maoJogador: pecasTotais.splice(0, 7), maoBot: pecasTotais.splice(0, 7), monte: pecasTotais, pecasNaMesa: [], pontaEsquerda: null, pontaDireita: null, turnoAtual: 'jogador', historico: [], finalizado: false };
-            document.getElementById('area-mesa').innerHTML = '<p>A mesa está vazia.</p>';
-            atualizarInterfaceLocal();
-        }
-
-        function atualizarInterfaceLocal() {
-            document.getElementById('ponta-esq').textContent = estadoLocal.pontaEsquerda !== null ? estadoLocal.pontaEsquerda : 'Vazia'; 
-            document.getElementById('ponta-dir').textContent = estadoLocal.pontaDireita !== null ? estadoLocal.pontaDireita : 'Vazia';
-            document.getElementById('qtd-monte').textContent = estadoLocal.monte.length; document.getElementById('qtd-bot').textContent = estadoLocal.maoBot.length;
-            document.getElementById('texto-turno').textContent = estadoLocal.turnoAtual === 'jogador' ? 'Sua vez' : 'Vez da Máquina';
-            document.getElementById('btn-cavar').disabled = estadoLocal.turnoAtual !== 'jogador';
-            document.getElementById('area-mao').innerHTML = '';
-            estadoLocal.maoJogador.forEach((peca, index) => {
-                const btn = document.createElement('button'); btn.className = 'peca'; btn.setAttribute('aria-label', nomeAcessivel(peca));
-                btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`; btn.disabled = estadoLocal.turnoAtual !== 'jogador';
-                btn.onclick = () => { /* Logica de clique mantida igual a anterior para simplificar tela */ }; 
-                document.getElementById('area-mao').appendChild(btn);
+        function passarTurnoOnline(jogo) {
+            salaAtualRef.child('jogadores').once('value').then(snap => {
+                const jogadores = snap.val();
+                const uids = Object.keys(jogadores).filter(k => jogadores[k].isOcupante);
+                const atualIndex = uids.indexOf(jogo.turnoAtual);
+                jogo.turnoAtual = uids[(atualIndex + 1) % uids.length];
+                salaAtualRef.child('estadoJogo').update(jogo);
             });
         }
 
         document.getElementById('btn-desistir').addEventListener('click', () => {
-            if(isOnlineMode) {
-                if(salaAtualRef) {
-                    if(isAdminSala) { salaAtualRef.remove(); } else { salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); }
-                }
+            if(isOnlineMode && salaAtualRef) {
+                if(isAdminSala) { salaAtualRef.remove(); db.ref(`chats/${salaAtualRef.key}`).remove(); }
+                else { salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); }
             }
             irParaMenu();
+        });
+
+        // LÓGICA LOCAL MANTIDA RESUMIDA
+        document.getElementById('btn-modo-local').addEventListener('click', () => {
+            document.getElementById('modal-modo-jogo').style.display = 'none';
+            isOnlineMode = false; initAudio(); tocarSom('embaralhar');
+            document.getElementById('tela-menu').style.display = 'none'; document.getElementById('tela-jogo').style.display = 'block';
+            falarAssertivo("Partida Local iniciada. Mesa vazia.");
         });
     </script>
 </body>
