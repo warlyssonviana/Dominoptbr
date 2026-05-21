@@ -2,79 +2,87 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Dominó Acessível - Multiplayer Oficial</title>
+    <title>Dominó Online</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; }
-        .container { max-width: 600px; margin: auto; }
-        button { padding: 15px; margin: 10px 0; width: 100%; font-size: 1.2rem; }
-        .hidden { display: none; }
+        .hidden { display: none !important; }
+        button { padding: 15px; width: 100%; margin: 5px 0; }
     </style>
 </head>
 <body>
-    <div class="container" id="app">
+    <div id="app">
         <main id="tela-login">
             <h2>Login</h2>
             <input type="email" id="email" placeholder="E-mail">
             <input type="password" id="senha" placeholder="Senha">
-            <button id="btn-entrar">Entrar</button>
+            <button onclick="login()">Entrar</button>
         </main>
 
-        <main id="tela-menu" class="hidden">
-            <h2>Usuários Online: <span id="qtd-online">0</span></h2>
-            <h2>Salas Disponíveis: <span id="qtd-salas">0</span></h2>
-            <button onclick="escolherModo()">Jogar Partida</button>
+        <main id="tela-lobby" class="hidden">
+            <h2>Lobby</h2>
+            <button onclick="criarMesa()">Criar Nova Mesa</button>
+            <div id="lista-salas"></div>
         </main>
 
-        <main id="tela-mesa" class="hidden">
-            <h2 id="titulo-sala">Mesa</h2>
+        <main id="tela-espera" class="hidden">
+            <h2 id="titulo-sala">Sala de Espera</h2>
             <ul id="lista-jogadores"></ul>
-            <button id="btn-iniciar" class="hidden">Iniciar Partida</button>
+            <button id="btn-iniciar-jogo" onclick="iniciarJogo()">Iniciar Partida</button>
+        </main>
+
+        <main id="tela-jogo" class="hidden">
+            <h2>Jogo Iniciado!</h2>
+            <div id="tabuleiro">Tabuleiro do Jogo aqui...</div>
         </main>
     </div>
 
     <script>
         const firebaseConfig = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
         firebase.initializeApp(firebaseConfig);
-        
-        // Sincronização automática
-        firebase.auth().onAuthStateChanged(user => {
-            if(user) {
-                document.getElementById('tela-login').className = 'hidden';
-                document.getElementById('tela-menu').className = '';
-                firebase.database().ref('lobby/presenca/' + user.uid).set(true);
-                firebase.database().ref('lobby/presenca').on('value', s => document.getElementById('qtd-online').innerText = s.numChildren());
-                firebase.database().ref('salas').on('value', s => document.getElementById('qtd-salas').innerText = s.numChildren());
-            }
-        });
+        const db = firebase.database(); let salaIdAtual = null;
 
-        document.getElementById('btn-entrar').onclick = () => firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value);
+        function login() {
+            firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value)
+            .then(() => { document.getElementById('tela-login').className = 'hidden'; document.getElementById('tela-lobby').className = ''; });
+        }
 
-        function escolherModo() {
-            const modo = confirm("Deseja jogar MODO ONLINE? (Cancelar inicia modo Offline)");
-            if(modo) {
-                const sala = firebase.database().ref('salas').push();
-                sala.set({ admin: firebase.auth().currentUser.uid, status: 'aguardando', jogadores: {[firebase.auth().currentUser.uid]: {nome: 'Admin'}} });
-                entrarNaSala(sala.key);
-            } else {
-                alert("Modo Offline iniciado.");
-            }
+        function criarMesa() {
+            const sala = db.ref('salas').push();
+            sala.set({ admin: firebase.auth().currentUser.uid, status: 'aguardando', jogadores: {[firebase.auth().currentUser.uid]: {nome: 'Admin'}} });
+            entrarNaSala(sala.key);
         }
 
         function entrarNaSala(id) {
-            document.getElementById('tela-menu').className = 'hidden';
-            document.getElementById('tela-mesa').className = '';
-            firebase.database().ref('salas/' + id).on('value', snap => {
+            salaIdAtual = id;
+            document.getElementById('tela-lobby').className = 'hidden';
+            document.getElementById('tela-espera').className = '';
+            
+            db.ref('salas/' + id).on('value', snap => {
                 const s = snap.val();
-                if(s.admin === firebase.auth().currentUser.uid) document.getElementById('btn-iniciar').className = '';
-                document.getElementById('btn-iniciar').onclick = () => {
-                    alert("Partida Iniciada com Sucesso!");
-                    firebase.database().ref('salas/' + id).update({status: 'jogando'});
-                };
+                if(s.status === 'jogando') {
+                    document.getElementById('tela-espera').className = 'hidden';
+                    document.getElementById('tela-jogo').className = '';
+                }
             });
         }
+
+        function iniciarJogo() {
+            db.ref('salas/' + salaIdAtual).update({status: 'jogando'});
+        }
+
+        // Listar salas
+        db.ref('salas').on('value', snap => {
+            const lista = document.getElementById('lista-salas'); lista.innerHTML = '';
+            snap.forEach(s => {
+                const b = document.createElement('button');
+                b.textContent = "Entrar em Mesa: " + s.key;
+                b.onclick = () => entrarNaSala(s.key);
+                lista.appendChild(b);
+            });
+        });
     </script>
 </body>
 </html>
