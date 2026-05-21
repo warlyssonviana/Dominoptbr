@@ -5,754 +5,101 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dominó Acessível - Multiplayer Oficial</title>
     <style>
-        :root {
-            --bg-color: #f4f4f9; --text-color: #1a1a1a; --card-bg: #ffffff;
-            --border-color: #cccccc; --focus-outline: #0056b3;
-            --btn-bg: #0056b3; --btn-text: #ffffff;
-            --alert-bg: #fff3cd; --alert-text: #856404;
-            --danger-bg: #dc3545; --danger-text: #ffffff;
-        }
-        .dark-mode {
-            --bg-color: #121212; --text-color: #e0e0e0; --card-bg: #1e1e1e;
-            --border-color: #444444; --focus-outline: #4da6ff;
-            --btn-bg: #333333; --btn-text: #e0e0e0;
-            --alert-bg: #4d4013; --alert-text: #e0d08f;
-            --danger-bg: #a71d2a; --danger-text: #ffffff;
-        }
-
-        body { background-color: var(--bg-color); color: var(--text-color); font-family: Arial, sans-serif; margin: 0; padding: 20px; transition: all 0.3s ease; }
-        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
-        
-        button, select, input { font-size: 1rem; padding: 12px 18px; margin: 5px; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 5px; }
-        button { background-color: var(--btn-bg); color: var(--btn-text); cursor: pointer; }
-        button:focus, select:focus, input:focus { outline: 3px solid var(--focus-outline); outline-offset: 2px; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        .btn-perigo { background-color: var(--danger-bg); color: var(--danger-text); }
-        .btn-secundario { background-color: #6c757d; }
-
-        .container { max-width: 800px; margin: 0 auto; background-color: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
-        .mesa-info { background-color: var(--alert-bg); color: var(--alert-text); padding: 10px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; }
-        
-        .peca { display: inline-block; border: 2px solid var(--border-color); padding: 10px 15px; margin: 5px; font-weight: bold; font-size: 1.2rem; background-color: var(--bg-color); color: var(--text-color); }
-        
-        .modal { display: none; border: 2px solid var(--focus-outline); padding: 15px; background-color: var(--card-bg); margin-top: 15px; border-radius: 8px; }
-        .ranking-box { border: 1px dashed var(--border-color); padding: 15px; margin-bottom: 15px; background-color: var(--bg-color); }
-
-        details { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
-        summary { font-weight: bold; cursor: pointer; padding: 10px; background-color: var(--card-bg); border-radius: 4px; }
-        #lista-historico { list-style-type: none; padding-left: 0; max-height: 150px; overflow-y: auto; }
-        #lista-historico li { padding: 5px 0; border-bottom: 1px dashed var(--border-color); }
-
-        #tela-jogo { display: flex; flex-direction: column; min-height: 75vh; }
-        #secao-mesa { flex: 1; border-bottom: 2px dashed var(--border-color); padding-bottom: 15px; min-height: 30vh; }
-        #secao-mao { flex: 1; padding-top: 15px; min-height: 30vh; }
-        
-        .chat-container { margin-top: 15px; }
-        .lista-mensagens { max-height: 150px; overflow-y: auto; list-style: none; padding: 0; margin-bottom: 10px; border: 1px inset var(--border-color); background: var(--card-bg); padding: 5px;}
-        .lista-mensagens li { padding: 5px; border-bottom: 1px dotted var(--border-color); }
-        
-        .sala-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; background: var(--card-bg); flex-wrap: wrap; }
-        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
-        .form-group label { font-weight: bold; margin-bottom: 5px; }
+        :root { --bg-color: #f4f4f9; --text-color: #1a1a1a; --card-bg: #ffffff; --border-color: #cccccc; --btn-bg: #0056b3; --btn-text: #ffffff; }
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; padding: 20px; }
+        button { background-color: var(--btn-bg); color: var(--btn-text); padding: 10px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; }
+        .modal { display: none; position: fixed; top: 20%; left: 10%; width: 80%; background: white; padding: 20px; border: 2px solid #000; z-index: 1000; }
+        .sala-item { display: flex; justify-content: space-between; padding: 10px; border: 1px solid #ccc; margin-bottom: 5px; }
     </style>
-    
     <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
 </head>
 <body>
-
-    <div id="anunciador-acessibilidade" class="sr-only" aria-live="polite"></div>
-    <div id="anunciador-urgente" class="sr-only" aria-live="assertive"></div>
-
     <div class="container">
-        <header>
-            <h1>Dominó Acessível</h1>
-            <button id="btn-tema" aria-pressed="false">Ativar modo escuro</button>
-        </header>
-
         <main id="tela-login">
-            <h2>Identificação do Jogador</h2>
-            <p>Faça login ou crie sua conta para acessar os recursos online.</p>
-            
-            <div class="form-group">
-                <label for="input-email">E-mail:</label>
-                <input type="email" id="input-email" placeholder="seu@email.com">
-            </div>
-            
-            <div class="form-group">
-                <label for="input-senha">Senha:</label>
-                <input type="password" id="input-senha" placeholder="Mínimo 6 caracteres">
-            </div>
-            
-            <div class="form-group">
-                <label for="input-apelido">Apelido (Apenas para Criar Conta):</label>
-                <input type="text" id="input-apelido" placeholder="Seu nome no jogo">
-            </div>
-            
+            <h2>Login</h2>
+            <input type="email" id="input-email" placeholder="E-mail">
+            <input type="password" id="input-senha" placeholder="Senha">
+            <input type="text" id="input-apelido" placeholder="Apelido">
             <button id="btn-entrar">Entrar</button>
-            <button id="btn-criar-conta">Criar Nova Conta</button>
+            <button id="btn-criar-conta">Criar Conta</button>
         </main>
 
-        <main id="tela-menu" style="display: none;" aria-hidden="true">
-            <h2 id="titulo-menu" tabindex="-1">Menu Principal - <span id="display-apelido"></span></h2>
-            <button id="btn-trocar-apelido">Sair da Conta</button>
-
-            <div class="ranking-box" tabindex="0">
-                <h3>Servidor</h3>
-                <p>Usuários Online: <span id="contador-online">0</span> | Salas Ativas: <span id="contador-salas">0</span></p>
-            </div>
-
-            <button id="btn-abrir-opcoes-jogar" style="font-size: 1.2rem; padding: 15px; width: 100%;">Jogar Partida</button>
-
-            <div id="modal-modo-jogo" class="modal" role="dialog" aria-labelledby="titulo-modo">
-                <h3 id="titulo-modo">Escolha o Modo de Jogo</h3>
-                <button id="btn-modo-local">Modo Local Offline (Contra Bots)</button>
-                <button id="btn-modo-online">Modo Multiplayer Online</button>
-                <button id="btn-fechar-modal-modo" class="btn-secundario">Cancelar</button>
-            </div>
-
-            <div id="modal-criar-sala" class="modal" role="dialog" aria-labelledby="titulo-criar-sala">
-                <h3 id="titulo-criar-sala">Configurar Nova Mesa</h3>
-                <div class="form-group">
-                    <label for="select-privacidade">Privacidade da Mesa:</label>
-                    <select id="select-privacidade">
-                        <option value="publica">Pública (Todos podem entrar)</option>
-                        <option value="privada">Privada (Exige Senha)</option>
-                    </select>
-                </div>
-                <div class="form-group" id="div-senha-sala" style="display: none;">
-                    <label for="input-senha-sala">Senha Numérica:</label>
-                    <input type="number" id="input-senha-sala" placeholder="Ex: 1234">
-                </div>
-                <div class="form-group">
-                    <label><input type="checkbox" id="check-permitir-telespectadores" checked> Permitir Telespectadores</label>
-                </div>
-                <button id="btn-confirmar-criar-sala">Criar Mesa</button>
-                <button id="btn-fechar-criar-sala" class="btn-secundario">Cancelar</button>
-            </div>
-
-            <div id="lista-salas-online" class="ranking-box" style="margin-top: 20px;">
-                <h3>Mesas Disponíveis</h3>
-                <div id="ul-salas" aria-live="polite">
-                    <p>Nenhuma sala aberta.</p>
-                </div>
-            </div>
+        <main id="tela-menu" style="display: none;">
+            <h2>Bem-vindo, <span id="display-apelido"></span></h2>
+            <button id="btn-criar-sala-online">Criar Mesa Online</button>
+            <div id="ul-salas"></div>
         </main>
 
-        <main id="tela-espera-sala" style="display: none;" aria-hidden="true">
-            <h2 id="titulo-sala" tabindex="-1">Mesa Online</h2>
-            <p><strong>Dono da Mesa:</strong> <span id="nome-dono-sala"></span></p>
-            
-            <div class="ranking-box">
-                <h3>Assentos Ocupados (<span id="qtd-jogadores-sala">1</span>/4)</h3>
-                <ul id="lista-jogadores-sala" aria-live="polite"></ul>
-                <p>Telespectadores: <span id="qtd-telespectadores">0</span></p>
-            </div>
-            
-            <div id="controles-admin-sala" style="display: none;" class="ranking-box">
-                <h3>Administração da Mesa</h3>
+        <main id="tela-espera-sala" style="display: none;">
+            <h2 id="nome-dono-sala"></h2>
+            <ul id="lista-jogadores-sala"></ul>
+            <div id="controles-admin-sala" style="display: none;">
                 <button id="btn-add-bot">Adicionar Bot</button>
                 <button id="btn-iniciar-online">Iniciar Partida</button>
-                <div style="margin-top: 10px;">
-                    <label><input type="checkbox" id="check-mutar-chat"> Silenciar Telespectadores no Chat</label>
-                </div>
             </div>
-            
-            <details id="detalhes-chat-sala" class="chat-container">
-                <summary>Chat da Mesa (Clique para expandir/recolher)</summary>
-                <ul id="lista-chat-sala" class="lista-mensagens" aria-live="polite"></ul>
-                <div class="form-group" style="margin-top: 10px;">
-                    <input type="text" id="input-chat-sala" placeholder="Digite sua mensagem...">
-                    <button id="btn-enviar-chat-sala">Enviar Mensagem</button>
-                </div>
-            </details>
-
-            <button id="btn-sair-sala" class="btn-perigo" style="margin-top: 20px;">Sair da Mesa</button>
+            <button id="btn-sair-sala">Sair</button>
         </main>
 
-        <main id="tela-jogo" style="display: none;" aria-hidden="true">
-            <h2 id="titulo-partida" tabindex="-1">Partida em Andamento</h2>
-            
-            <section class="mesa-info" id="info-status" tabindex="0">
-                <p><strong>Turno:</strong> <span id="texto-turno">Sua vez</span></p>
-                <p><strong>Mesa:</strong> Esq: <span id="ponta-esq">Vazia</span> | Dir: <span id="ponta-dir">Vazia</span></p>
-                <p><strong>Monte:</strong> <span id="qtd-monte">14</span> | <strong>Oponentes:</strong> <span id="qtd-bot">7</span></p>
-            </section>
-
-            <section id="secao-mesa" aria-labelledby="titulo-mesa">
-                <h3 id="titulo-mesa" class="sr-only">Peças na Mesa</h3>
-                <div id="area-mesa"></div>
-            </section>
-
-            <div id="modal-escolha" class="modal" role="dialog" aria-labelledby="titulo-modal" aria-modal="true">
-                <h3 id="titulo-modal">Escolha o lado</h3>
-                <p id="texto-modal-peca"></p>
-                <button id="btn-jogar-esq">Esquerda</button>
-                <button id="btn-jogar-dir">Direita</button>
-                <button id="btn-cancelar-jogada" class="btn-secundario">Cancelar</button>
-            </div>
-
-            <section id="secao-mao" aria-labelledby="titulo-mao">
-                <h3 id="titulo-mao">Suas Peças</h3>
-                <div id="area-mao" role="group" aria-label="Suas peças" tabindex="-1"></div>
-                <br>
-                <button id="btn-cavar">Comprar Peça</button>
-                <button id="btn-desistir" class="btn-perigo">Desistir / Sair</button>
-            </section>
-            
-            <details id="detalhes-chat-jogo" class="chat-container">
-                <summary>Chat da Partida (Clique para expandir/recolher)</summary>
-                <ul id="lista-chat-jogo" class="lista-mensagens" aria-live="polite"></ul>
-                <div class="form-group" style="margin-top: 10px;">
-                    <input type="text" id="input-chat-jogo" placeholder="Digite sua mensagem...">
-                    <button id="btn-enviar-chat-jogo">Enviar Mensagem</button>
-                </div>
-            </details>
-
-            <details id="detalhes-historico">
-                <summary>Histórico de Jogadas do Servidor</summary>
-                <ul id="lista-historico" aria-live="polite"></ul>
-            </details>
-        </main>
+        <div id="modal-admin-jogador" class="modal">
+            <h3>Gerenciar Jogador</h3>
+            <button id="btn-expulsar">Expulsar</button>
+            <button id="btn-promover">Tornar Admin</button>
+            <button onclick="document.getElementById('modal-admin-jogador').style.display='none'">Fechar</button>
+        </div>
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8",
-            authDomain: "dominoacessivel.firebaseapp.com",
-            databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com",
-            projectId: "dominoacessivel",
-            storageBucket: "dominoacessivel.firebasestorage.app",
-            messagingSenderId: "253382950798",
-            appId: "1:253382950798:web:76e3c75dd7d687647feedf"
-        };
-        
+        const firebaseConfig = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
         firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
-
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        let audioCtx;
-        function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
-        function tocarSom(tipo) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            if (tipo === 'embaralhar') {
-                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.3);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-            } else if (tipo === 'jogar') {
-                osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
-            } else if (tipo === 'erro') {
-                osc.type = 'triangle'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.setValueAtTime(100, audioCtx.currentTime + 0.15);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
-            } else if (tipo === 'vitoria') {
-                osc.type = 'sine'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.2); osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.4);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
-                osc.start(); osc.stop(audioCtx.currentTime + 0.6);
-            }
-        }
-
-        const btnTema = document.getElementById('btn-tema');
-        const anunciadorPolite = document.getElementById('anunciador-acessibilidade');
-        const anunciadorAssertivo = document.getElementById('anunciador-urgente');
-
-        function falar(texto) { anunciadorPolite.textContent = ''; setTimeout(() => anunciadorPolite.textContent = texto, 100); }
-        function falarAssertivo(texto) { anunciadorAssertivo.textContent = ''; setTimeout(() => anunciadorAssertivo.textContent = texto, 100); }
-
-        btnTema.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            const isDark = document.body.classList.contains('dark-mode');
-            btnTema.textContent = isDark ? 'Desativar modo escuro' : 'Ativar modo escuro';
-            falarAssertivo(isDark ? 'Modo escuro ativado.' : 'Modo escuro desativado.');
-        });
-
-        let jogadorApelido = '';
-        let currentUser = null;
-        const estadosBrasil = ["Acre", "Bahia", "Ceará", "Pernambuco", "Rio de Janeiro", "São Paulo", "Minas Gerais"];
-        let salaAtualRef = null;
-        let isOnlineMode = false;
-        let isAdminSala = false;
-        let isOcupanteAtual = false;
-
-        function irParaMenu() {
-            document.getElementById('tela-login').style.display = 'none';
-            document.getElementById('tela-espera-sala').style.display = 'none';
-            document.getElementById('tela-jogo').style.display = 'none';
-            document.getElementById('tela-menu').style.display = 'block';
-            document.getElementById('display-apelido').textContent = jogadorApelido;
-            document.getElementById('titulo-menu').focus();
-            if(salaAtualRef) { salaAtualRef.off(); salaAtualRef = null; }
-            isOnlineMode = false;
-            isAdminSala = false;
-            isOcupanteAtual = false;
-        }
-
-        document.getElementById('btn-criar-conta').addEventListener('click', () => {
-            const email = document.getElementById('input-email').value.trim();
-            const senha = document.getElementById('input-senha').value.trim();
-            const apelido = document.getElementById('input-apelido').value.trim();
-            if(!email || !senha || !apelido) { falarAssertivo("Preencha e-mail, senha e apelido."); return; }
-            
-            auth.createUserWithEmailAndPassword(email, senha).then(cred => {
-                cred.user.updateProfile({ displayName: apelido }).then(() => {
-                    db.ref(`usuarios/${cred.user.uid}`).set({ apelido: apelido, email: email, nivel: 'usuario' });
-                });
-            }).catch(e => falarAssertivo("Erro: " + e.message));
-        });
-
-        document.getElementById('btn-entrar').addEventListener('click', () => {
-            const email = document.getElementById('input-email').value.trim();
-            const senha = document.getElementById('input-senha').value.trim();
-            if(!email || !senha) { falarAssertivo("Preencha e-mail e senha."); return; }
-            auth.signInWithEmailAndPassword(email, senha).catch(e => falarAssertivo("Erro ao entrar."));
-        });
+        const auth = firebase.auth(); const db = firebase.database();
+        let currentUser = null, salaAtualRef = null, isAdmin = false;
+        let poolBots = ["Acre", "Bahia", "Ceará", "Pernambuco", "Rio", "São Paulo", "Minas"];
 
         auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                db.ref(`usuarios/${user.uid}`).once('value').then(snap => {
-                    const dados = snap.val();
-                    jogadorApelido = dados ? dados.apelido : (user.displayName || "Jogador");
-                    const presenceRef = db.ref(`lobby/presenca/${user.uid}`);
-                    presenceRef.set(true);
-                    presenceRef.onDisconnect().remove();
-                    irParaMenu();
-                    iniciarListenersLobby();
-                });
-            } else {
-                currentUser = null;
-                document.getElementById('tela-login').style.display = 'block';
-                document.getElementById('tela-menu').style.display = 'none';
-            }
+            if(user) { currentUser = user; document.getElementById('tela-login').style.display='none'; document.getElementById('tela-menu').style.display='block'; }
         });
 
-        document.getElementById('btn-trocar-apelido').addEventListener('click', () => {
-            if(currentUser) db.ref(`lobby/presenca/${currentUser.uid}`).remove();
-            auth.signOut();
-        });
-
-        function iniciarListenersLobby() {
-            db.ref('lobby/presenca').on('value', snap => {
-                document.getElementById('contador-online').textContent = snap.numChildren();
-            });
-            db.ref('salas').on('value', snap => {
-                document.getElementById('contador-salas').textContent = snap.numChildren();
-                renderizarListaSalas(snap.val());
-            });
-        }
-
-        document.getElementById('btn-abrir-opcoes-jogar').addEventListener('click', () => {
-            document.getElementById('modal-modo-jogo').style.display = 'block';
-            document.getElementById('btn-modo-local').focus();
-        });
-        document.getElementById('btn-fechar-modal-modo').addEventListener('click', () => {
-            document.getElementById('modal-modo-jogo').style.display = 'none';
-        });
-
-        document.getElementById('btn-modo-online').addEventListener('click', () => {
-            document.getElementById('modal-modo-jogo').style.display = 'none';
-            document.getElementById('modal-criar-sala').style.display = 'block';
-        });
-        document.getElementById('btn-fechar-criar-sala').addEventListener('click', () => {
-            document.getElementById('modal-criar-sala').style.display = 'none';
-        });
-        
-        document.getElementById('select-privacidade').addEventListener('change', (e) => {
-            document.getElementById('div-senha-sala').style.display = e.target.value === 'privada' ? 'block' : 'none';
-        });
-
-        document.getElementById('btn-confirmar-criar-sala').addEventListener('click', () => {
-            initAudio(); tocarSom('embaralhar');
-            const priv = document.getElementById('select-privacidade').value;
-            const senha = document.getElementById('input-senha-sala').value;
-            const permiteTele = document.getElementById('check-permitir-telespectadores').checked;
-            
-            const novaSalaRef = db.ref('salas').push();
-            salaAtualRef = novaSalaRef;
-            isAdminSala = true;
-            isOcupanteAtual = true;
-            
-            novaSalaRef.set({
-                adminUID: currentUser.uid,
-                nomeAdmin: jogadorApelido,
-                status: 'aguardando',
-                privacidade: priv,
-                senha: priv === 'privada' ? senha : '',
-                permitirTeles: permiteTele,
-                mutarTelespectador: false,
-                jogadores: {
-                    [currentUser.uid]: { nome: jogadorApelido, tipo: 'humano', isOcupante: true }
-                }
-            }).then(() => {
-                document.getElementById('modal-criar-sala').style.display = 'none';
-                abrirTelaEspera(novaSalaRef.key, true);
-            });
-        });
-
-        function renderizarListaSalas(salas) {
-            const ul = document.getElementById('ul-salas');
-            ul.innerHTML = '';
-            if(!salas) { ul.innerHTML = '<p>Nenhuma sala aberta.</p>'; return; }
-            Object.keys(salas).forEach(key => {
-                const s = salas[key];
-                if(s.status === 'aguardando') {
-                    const d = document.createElement('div'); d.className = 'sala-item';
-                    const cadeado = s.privacidade === 'privada' ? '🔒 ' : '🟢 ';
-                    let numJogadores = 0;
-                    if(s.jogadores) {
-                        Object.values(s.jogadores).forEach(j => { if(j.isOcupante) numJogadores++; });
-                    }
-                    d.innerHTML = `
-                        <span>${cadeado}Mesa de ${s.nomeAdmin} (${numJogadores}/4)</span>
-                        <button onclick="entrarNaSala('${key}', '${s.privacidade}', '${s.senha}', ${s.permitirTeles})">Entrar</button>
-                    `;
-                    ul.appendChild(d);
-                }
-            });
-        }
-
-        window.entrarNaSala = function(salaId, priv, senhaReal, permiteTele) {
-            let tipo = 'humano';
-            let ocupante = true;
-
-            if (priv === 'privada') {
-                const tenta = prompt("Mesa Privada. Digite a senha da sala:");
-                if (tenta !== senhaReal) {
-                    if (permiteTele) {
-                        if(confirm("Senha incorreta. Deseja entrar apenas como Telespectador?")) {
-                            ocupante = false; tipo = 'telespectador';
-                        } else { return; }
-                    } else {
-                        alert("Senha incorreta. Telespectadores não são permitidos nesta mesa."); return;
-                    }
-                }
-            } else {
-                if(confirm("Deseja se juntar à mesa para JOGAR? \n\n[OK] para Jogar.\n[Cancelar] para ser TELESPECTADOR.")) {
-                    ocupante = true;
-                } else {
-                    ocupante = false; tipo = 'telespectador';
-                }
-            }
-            
-            initAudio();
-            isAdminSala = false;
-            isOcupanteAtual = ocupante;
-            salaAtualRef = db.ref(`salas/${salaId}`);
-            
-            salaAtualRef.child(`jogadores/${currentUser.uid}`).set({ 
-                nome: jogadorApelido, tipo: tipo, isOcupante: ocupante 
-            }).then(() => {
-                abrirTelaEspera(salaId, false);
-            });
+        document.getElementById('btn-criar-sala-online').onclick = () => {
+            const sala = db.ref('salas').push();
+            sala.set({ adminUID: currentUser.uid, status: 'aguardando', jogadores: { [currentUser.uid]: { nome: "Você", tipo: 'humano' } } });
+            abrirSala(sala);
         };
 
-        function escutarChat(salaId) {
-            const uls = [document.getElementById('lista-chat-sala'), document.getElementById('lista-chat-jogo')];
-            uls.forEach(ul => ul.innerHTML = '');
-            db.ref(`chats/${salaId}`).on('child_added', snap => {
-                const msg = snap.val();
-                uls.forEach(ul => {
-                    const li = document.createElement('li'); li.innerHTML = `<strong>${msg.autor}:</strong> ${msg.texto}`;
-                    ul.appendChild(li); ul.scrollTop = ul.scrollHeight;
-                });
-            });
-        }
-
-        function enviarMensagemChat(inputId) {
-            const input = document.getElementById(inputId);
-            const txt = input.value.trim();
-            if(txt && salaAtualRef) {
-                salaAtualRef.once('value').then(snap => {
-                    const sala = snap.val();
-                    if(sala.mutarTelespectador && !isOcupanteAtual && !isAdminSala) {
-                        falarAssertivo("O chat está silenciado para telespectadores.");
-                        return;
-                    }
-                    db.ref(`chats/${salaAtualRef.key}`).push({ autor: jogadorApelido, texto: txt });
-                    input.value = '';
-                });
-            }
-        }
-
-        document.getElementById('btn-enviar-chat-sala').addEventListener('click', () => enviarMensagemChat('input-chat-sala'));
-        document.getElementById('btn-enviar-chat-jogo').addEventListener('click', () => enviarMensagemChat('input-chat-jogo'));
-
-        function abrirTelaEspera(salaId, isAdmin) {
-            isOnlineMode = true;
+        function abrirSala(ref) {
+            salaAtualRef = ref;
             document.getElementById('tela-menu').style.display = 'none';
             document.getElementById('tela-espera-sala').style.display = 'block';
-            
-            document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
-            document.getElementById('btn-sair-sala').textContent = isAdmin ? 'Excluir Mesa e Sair' : 'Sair da Mesa';
-            document.getElementById('titulo-sala').focus();
-            
-            escutarChat(salaId);
-            
-            document.getElementById('check-mutar-chat').addEventListener('change', (e) => {
-                if(salaAtualRef && isAdminSala) salaAtualRef.update({ mutarTelespectador: e.target.checked });
-            });
-            
-            salaAtualRef.on('value', snap => {
-                const dados = snap.val();
-                if(!dados) { irParaMenu(); return; } 
-                
-                document.getElementById('nome-dono-sala').textContent = dados.nomeAdmin;
-                const ulJogadores = document.getElementById('lista-jogadores-sala'); ulJogadores.innerHTML = '';
-                
-                let countJogadores = 0; let countTeles = 0;
-                if(dados.jogadores) {
-                    Object.keys(dados.jogadores).forEach(uid => {
-                        const j = dados.jogadores[uid];
-                        if(j.isOcupante) {
-                            countJogadores++;
-                            const li = document.createElement('li'); li.textContent = j.nome + (j.tipo === 'bot' ? ' (Computador)' : '');
-                            ulJogadores.appendChild(li);
-                        } else { countTeles++; }
-                    });
-                }
-                document.getElementById('qtd-jogadores-sala').textContent = countJogadores;
-                document.getElementById('qtd-telespectadores').textContent = countTeles;
-                
-                if(dados.status === 'jogando') {
-                    salaAtualRef.off('value'); 
-                    carregarMesaDeJogo();
-                }
+            ref.on('value', snap => {
+                const s = snap.val();
+                isAdmin = s.adminUID === currentUser.uid;
+                document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
+                const ul = document.getElementById('lista-jogadores-sala'); ul.innerHTML = '';
+                Object.keys(s.jogadores).forEach(uid => {
+                    const li = document.createElement('li');
+                    li.textContent = s.jogadores[uid].nome;
+                    if(isAdmin && uid !== currentUser.uid) li.onclick = () => abrirAdminModal(uid);
+                    ul.appendChild(li);
+                });
             });
         }
 
-        document.getElementById('btn-add-bot').addEventListener('click', () => {
-            if(salaAtualRef) {
-                const botId = 'bot_' + Math.random().toString(36).substr(2, 9);
-                const uf = estadosBrasil[Math.floor(Math.random() * estadosBrasil.length)];
-                salaAtualRef.child(`jogadores/${botId}`).set({ nome: `Bot ${uf}`, tipo: 'bot', isOcupante: true });
-            }
-        });
-
-        document.getElementById('btn-sair-sala').addEventListener('click', () => {
-            if(salaAtualRef) {
-                if(isAdminSala) { 
-                    salaAtualRef.remove(); 
-                    db.ref(`chats/${salaAtualRef.key}`).remove(); 
-                } else { 
-                    salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); 
-                }
-                irParaMenu();
-            }
-        });
-
-        document.getElementById('btn-iniciar-online').addEventListener('click', () => {
-            if(salaAtualRef) {
-                salaAtualRef.once('value').then(snap => {
-                    const sala = snap.val();
-                    if(!sala || !sala.jogadores) return;
-                    
-                    const playersIds = Object.keys(sala.jogadores).filter(uid => sala.jogadores[uid].isOcupante);
-                    if(playersIds.length < 2) { falarAssertivo("Mínimo de 2 jogadores ocupando a mesa."); return; }
-                    
-                    let pecas = gerarPecas();
-                    let maos = {};
-                    playersIds.forEach(id => { maos[id] = pecas.splice(0, 7); });
-                    
-                    salaAtualRef.update({
-                        status: 'jogando',
-                        estadoJogo: {
-                            maos: maos, 
-                            monte: pecas, 
-                            historico: ["A partida online começou."],
-                            pontaEsq: "Vazia", 
-                            pontaDir: "Vazia", 
-                            turnoAtual: playersIds[0]
-                        }
-                    });
-                });
-            }
-        });
-
-        function carregarMesaDeJogo() {
-            document.getElementById('tela-espera-sala').style.display = 'none';
-            document.getElementById('tela-jogo').style.display = 'block';
-            document.getElementById('area-mao').style.display = isOcupanteAtual ? 'block' : 'none';
-            document.getElementById('btn-cavar').style.display = isOcupanteAtual ? 'inline-block' : 'none';
-            
-            falarAssertivo("A partida começou! A mesa foi aberta.");
-            
-            if(isOnlineMode && salaAtualRef) {
-                salaAtualRef.child('estadoJogo').on('value', snap => {
-                    const jogo = snap.val();
-                    if(!jogo) return;
-                    
-                    document.getElementById('qtd-monte').textContent = jogo.monte ? jogo.monte.length : 0;
-                    document.getElementById('ponta-esq').textContent = jogo.pontaEsq !== "Vazia" ? jogo.pontaEsq : 'Vazia';
-                    document.getElementById('ponta-dir').textContent = jogo.pontaDir !== "Vazia" ? jogo.pontaDir : 'Vazia';
-                    
-                    const areaMesa = document.getElementById('area-mesa'); areaMesa.innerHTML = '';
-                    if(jogo.pecasNaMesa) {
-                        jogo.pecasNaMesa.forEach(txt => {
-                            const pElem = document.createElement('span'); pElem.className = 'peca'; pElem.textContent = txt;
-                            areaMesa.appendChild(pElem);
-                        });
-                    }
-                    
-                    const ulHist = document.getElementById('lista-historico'); ulHist.innerHTML = '';
-                    if(jogo.historico) {
-                        jogo.historico.forEach(txt => {
-                            const li = document.createElement('li'); li.textContent = txt; ulHist.prepend(li);
-                        });
-                    }
-                    
-                    salaAtualRef.child(`jogadores/${jogo.turnoAtual}`).once('value').then(pSnap => {
-                        const donoTurno = pSnap.val();
-                        if(!donoTurno) return;
-                        
-                        const isMinhaVez = jogo.turnoAtual === currentUser.uid;
-                        document.getElementById('texto-turno').textContent = isMinhaVez ? "SUA VEZ" : `Vez de ${donoTurno.nome}`;
-                        
-                        if(isOcupanteAtual) {
-                            const minhaMao = jogo.maos[currentUser.uid] || [];
-                            const areaMao = document.getElementById('area-mao'); areaMao.innerHTML = '';
-                            minhaMao.forEach((peca, index) => {
-                                const btn = document.createElement('button'); btn.className = 'peca'; btn.setAttribute('aria-label', nomeAcessivel(peca));
-                                btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`; 
-                                btn.disabled = !isMinhaVez;
-                                btn.onclick = () => processarCliquePecaOnline(index, peca, jogo);
-                                areaMao.appendChild(btn);
-                            });
-                        }
-                        
-                        if(isAdminSala && donoTurno.tipo === 'bot') {
-                            setTimeout(() => jogadaDoBotOnline(jogo.turnoAtual, jogo), 3000);
-                        }
-                    });
-                });
-            }
+        function abrirAdminModal(uid) {
+            document.getElementById('modal-admin-jogador').style.display = 'block';
+            document.getElementById('btn-expulsar').onclick = () => { salaAtualRef.child(`jogadores/${uid}`).remove(); document.getElementById('modal-admin-jogador').style.display = 'none'; };
         }
 
-        // --- LÓGICA ONLINE JOGADAS ---
-        function checarOpcoesPeca(peca, pEsq, pDir) {
-            let trueEsq = pEsq === "Vazia" ? null : parseInt(pEsq);
-            let trueDir = pDir === "Vazia" ? null : parseInt(pDir);
-            
-            if (trueEsq === null && trueDir === null) return ['primeira'];
-            let opcoes = [];
-            if (peca.ladoA === trueEsq || peca.ladoB === trueEsq) opcoes.push('esquerda');
-            if (peca.ladoA === trueDir || peca.ladoB === trueDir) opcoes.push('direita');
-            return opcoes;
-        }
-
-        let pecaSelecionadaOnline = null;
-        let indexSelecionadoOnline = -1;
-        let estadoJogoTemp = null;
-
-        function processarCliquePecaOnline(index, peca, jogo) {
-            const opcoes = checarOpcoesPeca(peca, jogo.pontaEsq, jogo.pontaDir);
-            if (opcoes.length === 0) { tocarSom('erro'); falarAssertivo(`A peça não encaixa.`); return; }
-            
-            if (opcoes.length === 1) { executarJogadaOnline(currentUser.uid, index, peca, opcoes[0], jogo); }
-            else {
-                pecaSelecionadaOnline = peca; indexSelecionadoOnline = index; estadoJogoTemp = jogo;
-                document.getElementById('texto-modal-peca').textContent = `Onde jogar a ${nomeAcessivel(peca)}?`;
-                document.getElementById('modal-escolha').style.display = 'block'; document.getElementById('area-mao').style.display = 'none';
-            }
-        }
-
-        document.getElementById('btn-jogar-esq').onclick = () => {
-            document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block';
-            if(isOnlineMode) executarJogadaOnline(currentUser.uid, indexSelecionadoOnline, pecaSelecionadaOnline, 'esquerda', estadoJogoTemp);
+        document.getElementById('btn-add-bot').onclick = () => {
+            if(poolBots.length === 0) { alert("Sem bots disponíveis."); return; }
+            const nome = poolBots.pop();
+            salaAtualRef.child(`jogadores/bot_${Date.now()}`).set({ nome: "Bot " + nome, tipo: 'bot' });
         };
-        document.getElementById('btn-jogar-dir').onclick = () => {
-            document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block';
-            if(isOnlineMode) executarJogadaOnline(currentUser.uid, indexSelecionadoOnline, pecaSelecionadaOnline, 'direita', estadoJogoTemp);
+
+        document.getElementById('btn-iniciar-online').onclick = () => {
+            salaAtualRef.update({ status: 'jogando' });
+            alert("Partida iniciada!");
         };
-        document.getElementById('btn-cancelar-jogada').onclick = () => { document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block'; falar("Cancelado."); };
-
-        function executarJogadaOnline(uid, indexPeca, peca, lado, jogo) {
-            tocarSom('jogar');
-            jogo.maos[uid].splice(indexPeca, 1);
-            
-            let trueEsq = jogo.pontaEsq === "Vazia" ? null : parseInt(jogo.pontaEsq);
-            let trueDir = jogo.pontaDir === "Vazia" ? null : parseInt(jogo.pontaDir);
-
-            if (lado === 'primeira') { jogo.pontaEsq = peca.ladoA; jogo.pontaDir = peca.ladoB; }
-            else if (lado === 'esquerda') { jogo.pontaEsq = (peca.ladoA === trueEsq) ? peca.ladoB : peca.ladoA; }
-            else if (lado === 'direita') { jogo.pontaDir = (peca.ladoA === trueDir) ? peca.ladoB : peca.ladoA; }
-
-            const txtVisual = `${peca.ladoA} | ${peca.ladoB}`;
-            if(!jogo.pecasNaMesa) jogo.pecasNaMesa = [];
-            if (lado === 'esquerda' || lado === 'primeira') { jogo.pecasNaMesa.unshift(txtVisual); } else { jogo.pecasNaMesa.push(txtVisual); }
-
-            if(!jogo.historico) jogo.historico = [];
-            jogo.historico.push(`Alguém jogou ${nomeAcessivel(peca)}`);
-
-            passarTurnoOnline(jogo);
-        }
-
-        document.getElementById('btn-cavar').addEventListener('click', () => {
-            if(isOnlineMode && salaAtualRef) {
-                salaAtualRef.child('estadoJogo').once('value').then(snap => {
-                    const jogo = snap.val();
-                    if(jogo.turnoAtual !== currentUser.uid) return;
-                    let temValida = (jogo.maos[currentUser.uid]||[]).some(p => checarOpcoesPeca(p, jogo.pontaEsq, jogo.pontaDir).length > 0);
-                    if(jogo.pontaEsq === "Vazia") temValida = true;
-                    if(temValida) { tocarSom('erro'); falarAssertivo("Bloqueado! Tem pedra válida na mão."); return; }
-                    
-                    if(!jogo.monte || jogo.monte.length === 0) {
-                        if(!jogo.historico) jogo.historico = []; jogo.historico.push(`${jogadorApelido} passou a vez.`);
-                        falarAssertivo("Monte vazio. Passando a vez."); passarTurnoOnline(jogo);
-                    } else {
-                        const p = jogo.monte.shift();
-                        if(!jogo.maos[currentUser.uid]) jogo.maos[currentUser.uid] = [];
-                        jogo.maos[currentUser.uid].push(p);
-                        salaAtualRef.child('estadoJogo').update({ monte: jogo.monte, maos: jogo.maos });
-                    }
-                });
-            }
-        });
-
-        function jogadaDoBotOnline(botUid, jogo) {
-            const maoBot = jogo.maos[botUid] || [];
-            for (let i = 0; i < maoBot.length; i++) {
-                const opcoes = checarOpcoesPeca(maoBot[i], jogo.pontaEsq, jogo.pontaDir);
-                if (opcoes.length > 0) { executarJogadaOnline(botUid, i, maoBot[i], opcoes[0], jogo); return; }
-            }
-            if (jogo.monte && jogo.monte.length > 0) {
-                maoBot.push(jogo.monte.shift());
-                jogo.maos[botUid] = maoBot;
-                salaAtualRef.child('estadoJogo').update({ monte: jogo.monte, maos: jogo.maos });
-            } else { passarTurnoOnline(jogo); }
-        }
-
-        function passarTurnoOnline(jogo) {
-            salaAtualRef.child('jogadores').once('value').then(snap => {
-                const jogadores = snap.val();
-                const uids = Object.keys(jogadores).filter(k => jogadores[k].isOcupante);
-                const atualIndex = uids.indexOf(jogo.turnoAtual);
-                jogo.turnoAtual = uids[(atualIndex + 1) % uids.length];
-                salaAtualRef.child('estadoJogo').update(jogo);
-            });
-        }
-
-        document.getElementById('btn-desistir').addEventListener('click', () => {
-            if(isOnlineMode && salaAtualRef) {
-                if(isAdminSala) { salaAtualRef.remove(); db.ref(`chats/${salaAtualRef.key}`).remove(); }
-                else { salaAtualRef.child(`jogadores/${currentUser.uid}`).remove(); }
-            }
-            irParaMenu();
-        });
-
-        // LÓGICA LOCAL MANTIDA RESUMIDA
-        document.getElementById('btn-modo-local').addEventListener('click', () => {
-            document.getElementById('modal-modo-jogo').style.display = 'none';
-            isOnlineMode = false; initAudio(); tocarSom('embaralhar');
-            document.getElementById('tela-menu').style.display = 'none'; document.getElementById('tela-jogo').style.display = 'block';
-            falarAssertivo("Partida Local iniciada. Mesa vazia.");
-        });
     </script>
 </body>
 </html>
