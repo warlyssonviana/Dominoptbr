@@ -7,70 +7,97 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        button { padding: 20px; width: 100%; margin: 10px 0; font-size: 1.5rem; }
+        body { font-family: sans-serif; padding: 20px; text-align: center; }
+        .hidden { display: none !important; }
+        button { padding: 15px; width: 100%; margin: 10px 0; font-size: 1.2rem; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="app">
-        <div id="login-area">
-            <input type="email" id="email" placeholder="E-mail">
-            <input type="password" id="senha" placeholder="Senha">
+        <main id="tela-login">
+            <h2>Login</h2>
+            <input type="email" id="email" placeholder="E-mail"><br>
+            <input type="password" id="senha" placeholder="Senha"><br>
             <button onclick="logar()">Entrar</button>
-        </div>
+        </main>
 
-        <div id="menu-area" style="display:none;">
+        <main id="tela-menu" class="hidden">
+            <h2>Bem-vindo!</h2>
             <button onclick="criarSala()">Criar Nova Mesa</button>
             <div id="lista-salas"></div>
-        </div>
+        </main>
 
-        <div id="mesa-area" style="display:none;">
-            <h2 id="status-mesa">Aguardando...</h2>
-            <button id="btn-iniciar-jogo" onclick="iniciarJogo()">Iniciar Partida</button>
-        </div>
+        <main id="tela-espera" class="hidden">
+            <h2 id="titulo-sala">Sala de Espera</h2>
+            <ul id="lista-jogadores"></ul>
+            <button id="btn-iniciar" class="hidden" onclick="iniciarJogo()">Iniciar Partida</button>
+        </main>
+
+        <main id="tela-jogo" class="hidden">
+            <h2>Partida Online Iniciada!</h2>
+            <p>O tabuleiro está carregado.</p>
+        </main>
     </div>
 
     <script>
         const config = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
         firebase.initializeApp(config);
-        
+        const db = firebase.database(); let salaIdAtual = null;
+
         function logar() {
             firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value)
             .then(() => {
-                document.getElementById('login-area').style.display = 'none';
-                document.getElementById('menu-area').style.display = 'block';
+                document.getElementById('tela-login').className = 'hidden';
+                document.getElementById('tela-menu').className = '';
             });
         }
 
         function criarSala() {
-            const sala = firebase.database().ref('salas').push();
-            sala.set({ status: 'aguardando', admin: firebase.auth().currentUser.uid });
-            entrarSala(sala.key);
+            const sala = db.ref('salas').push();
+            sala.set({ admin: firebase.auth().currentUser.uid, status: 'aguardando', jogadores: {[firebase.auth().currentUser.uid]: {nome: 'Admin'}} });
+            entrarNaSala(sala.key);
         }
 
-        function entrarSala(id) {
-            document.getElementById('menu-area').style.display = 'none';
-            document.getElementById('mesa-area').style.display = 'block';
-            firebase.database().ref('salas/' + id).on('value', snap => {
+        function entrarNaSala(id) {
+            salaIdAtual = id;
+            document.getElementById('tela-menu').className = 'hidden';
+            document.getElementById('tela-espera').className = '';
+            
+            db.ref('salas/' + id).on('value', snap => {
                 const s = snap.val();
+                if(!s) return;
+                
+                // Exibe jogadores
+                const ul = document.getElementById('lista-jogadores'); ul.innerHTML = '';
+                Object.keys(s.jogadores).forEach(uid => { 
+                    const li = document.createElement('li'); li.textContent = s.jogadores[uid].nome; ul.appendChild(li); 
+                });
+
+                // Botão iniciar só para o Admin
+                if(s.admin === firebase.auth().currentUser.uid) document.getElementById('btn-iniciar').className = '';
+
+                // Transição real para tela de jogo
                 if(s.status === 'jogando') {
-                    document.getElementById('status-mesa').innerText = "JOGO INICIADO COM SUCESSO!";
+                    document.getElementById('tela-espera').className = 'hidden';
+                    document.getElementById('tela-jogo').className = '';
                 }
             });
-            window.salaAtual = id;
         }
 
         function iniciarJogo() {
-            firebase.database().ref('salas/' + window.salaAtual).update({status: 'jogando'});
+            db.ref('salas/' + salaIdAtual).update({status: 'jogando'});
         }
 
-        firebase.database().ref('salas').on('value', snap => {
+        // Listagem de salas
+        db.ref('salas').on('value', snap => {
             const list = document.getElementById('lista-salas'); list.innerHTML = '';
             snap.forEach(s => {
-                const b = document.createElement('button');
-                b.textContent = "Entrar na Mesa " + s.key.substring(0,5);
-                b.onclick = () => entrarSala(s.key);
-                list.appendChild(b);
+                if(s.val().status === 'aguardando') {
+                    const b = document.createElement('button');
+                    b.textContent = "Entrar na Mesa: " + s.key.substring(0,5);
+                    b.onclick = () => entrarNaSala(s.key);
+                    list.appendChild(b);
+                }
             });
         });
     </script>
