@@ -2,104 +2,111 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dominó Acessível - Multiplayer Oficial</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <style>
-        :root { --bg-color: #f4f4f9; --text-color: #1a1a1a; --card-bg: #ffffff; --border-color: #cccccc; --btn-bg: #0056b3; --btn-text: #ffffff; }
-        body { background-color: var(--bg-color); color: var(--text-color); font-family: sans-serif; padding: 20px; }
-        button { background-color: var(--btn-bg); color: var(--btn-text); padding: 10px; margin: 5px; cursor: pointer; border: none; border-radius: 5px; }
-        .modal { display: none; position: fixed; top: 20%; left: 10%; width: 80%; background: white; padding: 20px; border: 2px solid #000; z-index: 1000; }
-        .sala-item { display: flex; justify-content: space-between; padding: 10px; border: 1px solid #ccc; margin-bottom: 5px; }
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .container { max-width: 600px; margin: auto; }
+        button { padding: 15px; margin: 5px; width: 100%; font-size: 1.2rem; cursor: pointer; }
+        .hidden { display: none; }
     </style>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.11.0/firebase-database-compat.js"></script>
 </head>
 <body>
     <div class="container">
         <main id="tela-login">
             <h2>Login</h2>
-            <input type="email" id="input-email" placeholder="E-mail">
-            <input type="password" id="input-senha" placeholder="Senha">
-            <input type="text" id="input-apelido" placeholder="Apelido">
-            <button id="btn-entrar">Entrar</button>
-            <button id="btn-criar-conta">Criar Conta</button>
+            <input type="email" id="email" placeholder="E-mail">
+            <input type="password" id="senha" placeholder="Senha">
+            <button id="btn-login">Entrar</button>
+            <button id="btn-cadastro">Criar Conta</button>
         </main>
 
-        <main id="tela-menu" style="display: none;">
-            <h2>Bem-vindo, <span id="display-apelido"></span></h2>
-            <button id="btn-criar-sala-online">Criar Mesa Online</button>
-            <div id="ul-salas"></div>
+        <main id="tela-lobby" class="hidden">
+            <h2>Bem-vindo, <span id="display-nome"></span></h2>
+            <button id="btn-criar-mesa">Criar Nova Mesa</button>
+            <div id="lista-salas"></div>
         </main>
 
-        <main id="tela-espera-sala" style="display: none;">
-            <h2 id="nome-dono-sala"></h2>
-            <ul id="lista-jogadores-sala"></ul>
-            <div id="controles-admin-sala" style="display: none;">
-                <button id="btn-add-bot">Adicionar Bot</button>
-                <button id="btn-iniciar-online">Iniciar Partida</button>
-            </div>
-            <button id="btn-sair-sala">Sair</button>
+        <main id="tela-mesa" class="hidden">
+            <h2 id="titulo-sala">Mesa</h2>
+            <ul id="lista-jogadores"></ul>
+            <button id="btn-iniciar" class="hidden">Iniciar Partida</button>
+            <button id="btn-sair" class="btn-perigo">Sair da Mesa</button>
         </main>
-
-        <div id="modal-admin-jogador" class="modal">
-            <h3>Gerenciar Jogador</h3>
-            <button id="btn-expulsar">Expulsar</button>
-            <button id="btn-promover">Tornar Admin</button>
-            <button onclick="document.getElementById('modal-admin-jogador').style.display='none'">Fechar</button>
-        </div>
     </div>
 
     <script>
-        const firebaseConfig = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
+        const firebaseConfig = {
+            apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8",
+            authDomain: "dominoacessivel.firebaseapp.com",
+            databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com",
+            projectId: "dominoacessivel",
+            storageBucket: "dominoacessivel.firebasestorage.app",
+            messagingSenderId: "253382950798",
+            appId: "1:253382950798:web:76e3c75dd7d687647feedf"
+        };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth(); const db = firebase.database();
-        let currentUser = null, salaAtualRef = null, isAdmin = false;
-        let poolBots = ["Acre", "Bahia", "Ceará", "Pernambuco", "Rio", "São Paulo", "Minas"];
 
-        auth.onAuthStateChanged(user => {
-            if(user) { currentUser = user; document.getElementById('tela-login').style.display='none'; document.getElementById('tela-menu').style.display='block'; }
+        // Autenticação
+        document.getElementById('btn-login').onclick = () => auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value);
+        document.getElementById('btn-cadastro').onclick = () => auth.createUserWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value).then(user => {
+            db.ref('usuarios/' + user.user.uid).set({ apelido: document.getElementById('input-apelido').value, nivel: 'usuario' });
         });
 
-        document.getElementById('btn-criar-sala-online').onclick = () => {
-            const sala = db.ref('salas').push();
-            sala.set({ adminUID: currentUser.uid, status: 'aguardando', jogadores: { [currentUser.uid]: { nome: "Você", tipo: 'humano' } } });
-            abrirSala(sala);
+        auth.onAuthStateChanged(user => {
+            if(user) {
+                document.getElementById('tela-login').className = 'hidden';
+                document.getElementById('tela-lobby').className = '';
+                db.ref('usuarios/' + user.uid).once('value', s => document.getElementById('display-nome').textContent = s.val().apelido);
+                carregarSalas();
+            }
+        });
+
+        // Salas
+        document.getElementById('btn-criar-mesa').onclick = () => {
+            const novaSala = db.ref('salas').push();
+            novaSala.set({ adminUID: auth.currentUser.uid, status: 'aguardando', jogadores: { [auth.currentUser.uid]: { nome: 'Admin' } } });
+            entrarNaSala(novaSala.key);
         };
 
-        function abrirSala(ref) {
-            salaAtualRef = ref;
-            document.getElementById('tela-menu').style.display = 'none';
-            document.getElementById('tela-espera-sala').style.display = 'block';
-            ref.on('value', snap => {
-                const s = snap.val();
-                isAdmin = s.adminUID === currentUser.uid;
-                document.getElementById('controles-admin-sala').style.display = isAdmin ? 'block' : 'none';
-                const ul = document.getElementById('lista-jogadores-sala'); ul.innerHTML = '';
-                Object.keys(s.jogadores).forEach(uid => {
-                    const li = document.createElement('li');
-                    li.textContent = s.jogadores[uid].nome;
-                    if(isAdmin && uid !== currentUser.uid) li.onclick = () => abrirAdminModal(uid);
-                    ul.appendChild(li);
+        function carregarSalas() {
+            db.ref('salas').on('value', snap => {
+                const lista = document.getElementById('lista-salas'); lista.innerHTML = '';
+                snap.forEach(s => {
+                    const div = document.createElement('div'); div.className = 'sala-item';
+                    div.innerHTML = `<span>Sala: ${s.key}</span><button onclick="entrarNaSala('${s.key}')">Entrar</button>`;
+                    lista.appendChild(div);
                 });
             });
         }
 
-        function abrirAdminModal(uid) {
-            document.getElementById('modal-admin-jogador').style.display = 'block';
-            document.getElementById('btn-expulsar').onclick = () => { salaAtualRef.child(`jogadores/${uid}`).remove(); document.getElementById('modal-admin-jogador').style.display = 'none'; };
+        function entrarNaSala(id) {
+            db.ref(`salas/${id}/jogadores/${auth.currentUser.uid}`).set({ nome: 'Jogador' });
+            document.getElementById('tela-lobby').className = 'hidden';
+            document.getElementById('tela-mesa').className = '';
+            monitorarSala(id);
         }
 
-        document.getElementById('btn-add-bot').onclick = () => {
-            if(poolBots.length === 0) { alert("Sem bots disponíveis."); return; }
-            const nome = poolBots.pop();
-            salaAtualRef.child(`jogadores/bot_${Date.now()}`).set({ nome: "Bot " + nome, tipo: 'bot' });
-        };
-
-        document.getElementById('btn-iniciar-online').onclick = () => {
-            salaAtualRef.update({ status: 'jogando' });
-            alert("Partida iniciada!");
-        };
+        function monitorarSala(id) {
+            db.ref(`salas/${id}`).on('value', snap => {
+                const s = snap.val();
+                if(!s) return;
+                const ul = document.getElementById('lista-jogadores'); ul.innerHTML = '';
+                Object.keys(s.jogadores).forEach(uid => {
+                    const li = document.createElement('li'); li.textContent = s.jogadores[uid].nome;
+                    if(s.adminUID === auth.currentUser.uid && uid !== auth.currentUser.uid) {
+                        const btn = document.createElement('button'); btn.textContent = 'Expulsar';
+                        btn.onclick = () => db.ref(`salas/${id}/jogadores/${uid}`).remove();
+                        li.appendChild(btn);
+                    }
+                    ul.appendChild(li);
+                });
+                if(s.adminUID === auth.currentUser.uid) document.getElementById('btn-iniciar').className = '';
+            });
+        }
     </script>
 </body>
 </html>
