@@ -2,104 +2,663 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Dominó Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dominó Acessível - Multiplayer e Local</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9; --text-color: #1a1a1a; --card-bg: #ffffff;
+            --border-color: #cccccc; --focus-outline: #0056b3;
+            --btn-bg: #0056b3; --btn-text: #ffffff;
+            --alert-bg: #fff3cd; --alert-text: #856404;
+            --danger-bg: #dc3545; --danger-text: #ffffff;
+        }
+        .dark-mode {
+            --bg-color: #121212; --text-color: #e0e0e0; --card-bg: #1e1e1e;
+            --border-color: #444444; --focus-outline: #4da6ff;
+            --btn-bg: #333333; --btn-text: #e0e0e0;
+            --alert-bg: #4d4013; --alert-text: #e0d08f;
+            --danger-bg: #a71d2a; --danger-text: #ffffff;
+        }
+
+        body { background-color: var(--bg-color); color: var(--text-color); font-family: Arial, sans-serif; margin: 0; padding: 20px; transition: all 0.3s ease; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }
+        
+        button, select, input { font-size: 1rem; padding: 12px 18px; margin: 5px; background-color: var(--card-bg); color: var(--text-color); border: 1px solid var(--border-color); border-radius: 5px; width: 100%; box-sizing: border-box;}
+        button { background-color: var(--btn-bg); color: var(--btn-text); cursor: pointer; }
+        button:focus, select:focus, input:focus { outline: 3px solid var(--focus-outline); outline-offset: 2px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #btn-desistir { background-color: var(--danger-bg); color: var(--danger-text); }
+        .btn-secundario { background-color: #6c757d; }
+
+        .container { max-width: 800px; margin: 0 auto; background-color: var(--card-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+        .mesa-info { background-color: var(--alert-bg); color: var(--alert-text); padding: 10px; border-radius: 5px; margin-bottom: 15px; font-weight: bold; }
+        
+        .peca { display: inline-block; border: 2px solid var(--border-color); padding: 10px 15px; margin: 5px; font-weight: bold; font-size: 1.2rem; background-color: var(--bg-color); color: var(--text-color); width: auto; }
+        
+        .modal { display: none; border: 2px solid var(--focus-outline); padding: 15px; background-color: var(--card-bg); margin-top: 15px; border-radius: 8px; }
+        .ranking-box { border: 1px dashed var(--border-color); padding: 15px; margin-bottom: 15px; background-color: var(--bg-color); }
+
+        details { border: 1px solid var(--border-color); border-radius: 5px; padding: 10px; margin-top: 15px; background: var(--bg-color); }
+        summary { font-weight: bold; cursor: pointer; padding: 5px; }
+        #lista-historico { list-style-type: none; padding-left: 0; max-height: 150px; overflow-y: auto; }
+        #lista-historico li { padding: 5px 0; border-bottom: 1px dashed var(--border-color); }
+
+        #tela-jogo { display: flex; flex-direction: column; min-height: 75vh; }
+        #secao-mesa { flex: 1; border-bottom: 2px dashed var(--border-color); padding-bottom: 15px; min-height: 30vh; }
+        #secao-mao { flex: 1; padding-top: 15px; min-height: 30vh; }
+        .sala-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border-color); margin-bottom: 5px; background: var(--card-bg); flex-wrap: wrap;}
+        .sala-item button { width: auto; margin: 0;}
+    </style>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <style>
-        body { font-family: sans-serif; padding: 20px; text-align: center; }
-        .hidden { display: none !important; }
-        button { padding: 15px; width: 100%; margin: 10px 0; font-size: 1.2rem; cursor: pointer; }
-    </style>
 </head>
 <body>
-    <div id="app">
+
+    <div id="anunciador-acessibilidade" class="sr-only" aria-live="polite"></div>
+    <div id="anunciador-urgente" class="sr-only" aria-live="assertive"></div>
+
+    <div class="container">
+        <header>
+            <h1>Dominó Acessível</h1>
+            <button id="btn-tema" aria-pressed="false" style="width: auto;">Ativar modo escuro</button>
+        </header>
+
         <main id="tela-login">
-            <h2>Login</h2>
-            <input type="email" id="email" placeholder="E-mail"><br>
-            <input type="password" id="senha" placeholder="Senha"><br>
-            <button onclick="logar()">Entrar</button>
+            <h2>Identificação do Jogador</h2>
+            <p>Faça login ou crie sua conta para jogar online.</p>
+            <input type="email" id="input-email" placeholder="E-mail">
+            <input type="password" id="input-senha" placeholder="Senha">
+            <input type="text" id="input-apelido" placeholder="Apelido (Apenas para Criar Conta)">
+            <button id="btn-entrar" onclick="fazerLogin()">Entrar</button>
+            <button id="btn-criar-conta" onclick="criarConta()">Criar Nova Conta</button>
+            <button id="btn-recuperar" class="btn-secundario" onclick="recuperarSenha()">Esqueci a Senha</button>
         </main>
 
-        <main id="tela-menu" class="hidden">
-            <h2>Bem-vindo!</h2>
-            <button onclick="criarSala()">Criar Nova Mesa</button>
-            <div id="lista-salas"></div>
+        <main id="tela-menu" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-menu" tabindex="-1">Bem-vindo, <span id="display-apelido"></span>!</h2>
+            <button id="btn-trocar-apelido" class="btn-secundario" onclick="sairConta()">Sair / Trocar Conta</button>
+
+            <div class="ranking-box" tabindex="0">
+                <h3>Servidor Online</h3>
+                <p>Jogadores Online: <span id="qtd-online">0</span></p>
+                <p>Mesas Disponíveis: <span id="qtd-salas">0</span></p>
+            </div>
+
+            <div class="ranking-box" tabindex="0">
+                <h3>Seu Ranking Local</h3>
+                <p>Séries Vencidas: <span id="ranking-vitorias">0</span> | Séries Perdidas: <span id="ranking-derrotas">0</span></p>
+            </div>
+
+            <h2>Escolha o Modo de Jogo</h2>
+            <button id="btn-modo-local" style="background-color: #28a745;">Jogar Local (Offline contra Máquina)</button>
+            <button id="btn-modo-online">Criar Mesa Online</button>
+            
+            <div id="lista-salas-online" class="ranking-box" style="margin-top: 15px;">
+                <h3>Juntar-se a uma Mesa Online</h3>
+                <div id="ul-salas" aria-live="polite">
+                    <p>Buscando mesas...</p>
+                </div>
+            </div>
+            
+            <button id="btn-continuar-jogo" style="display: none; margin-top: 15px;">Continuar Série Local Salva</button>
         </main>
 
-        <main id="tela-espera" class="hidden">
-            <h2 id="titulo-sala">Sala de Espera</h2>
-            <ul id="lista-jogadores"></ul>
-            <button id="btn-iniciar" class="hidden" onclick="iniciarJogo()">Iniciar Partida</button>
+        <main id="tela-espera-sala" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-sala" tabindex="-1">Mesa de Espera</h2>
+            <div class="ranking-box">
+                <h3>Jogadores na Mesa</h3>
+                <ul id="lista-jogadores-sala" aria-live="polite"></ul>
+            </div>
+            
+            <div id="controles-admin-sala" style="display: none;">
+                <button id="btn-add-bot" onclick="adicionarBotOnline()">Adicionar Bot (Aleatório)</button>
+                <button id="btn-iniciar-online" style="background-color: #28a745;" onclick="iniciarPartidaOnline()">Iniciar Partida Online</button>
+            </div>
+            <button id="btn-sair-sala" class="btn-secundario" onclick="voltarParaMenu()">Sair da Mesa</button>
         </main>
 
-        <main id="tela-jogo" class="hidden">
-            <h2>Partida Online Iniciada!</h2>
-            <p>O tabuleiro está carregado.</p>
+        <main id="tela-jogo" style="display: none;" aria-hidden="true">
+            <h2 id="titulo-partida" tabindex="-1">Partida em Andamento</h2>
+            
+            <section class="mesa-info" id="info-status" tabindex="0">
+                <p id="texto-placar-container"><strong>Placar:</strong> Você <span id="placar-jogador">0</span> x <span id="placar-bot">0</span> Oponente(s)</p>
+                <p><strong>Turno:</strong> <span id="texto-turno">Sua vez</span></p>
+                <p><strong>Última Ação:</strong> <span id="texto-ultima-acao">Partida iniciada.</span></p>
+                <p><strong>Mesa:</strong> Esq: <span id="ponta-esq">Vazia</span> | Dir: <span id="ponta-dir">Vazia</span></p>
+                <p><strong>Monte:</strong> <span id="qtd-monte">14</span> | <strong>Oponentes:</strong> <span id="qtd-bot">7</span></p>
+            </section>
+
+            <section id="secao-mesa" aria-labelledby="titulo-mesa">
+                <h3 id="titulo-mesa" class="sr-only">Peças na Mesa</h3>
+                <div id="area-mesa"></div>
+            </section>
+
+            <div id="modal-escolha" class="modal" role="dialog" aria-labelledby="titulo-modal" aria-modal="true">
+                <h3 id="titulo-modal">Escolha o lado</h3>
+                <p id="texto-modal-peca"></p>
+                <button id="btn-jogar-esq">Jogar na Esquerda</button>
+                <button id="btn-jogar-dir">Jogar na Direita</button>
+                <button id="btn-cancelar-jogada" class="btn-secundario">Cancelar Seleção</button>
+            </div>
+
+            <div id="modal-fim-partida" class="modal" role="dialog" aria-labelledby="titulo-modal-fim" aria-modal="true">
+                <h3 id="titulo-modal-fim">Fim da Partida!</h3>
+                <p id="texto-resultado-partida"></p>
+                <button id="btn-proxima-partida">Iniciar Próxima Partida</button>
+                <button id="btn-encerrar-serie" class="btn-secundario" style="display: none;">Voltar ao Menu</button>
+            </div>
+
+            <section id="secao-mao" aria-labelledby="titulo-mao">
+                <h3 id="titulo-mao">Suas Peças</h3>
+                <div id="area-mao" role="group" aria-label="Suas peças" tabindex="-1"></div>
+                <br>
+                <button id="btn-cavar">Comprar Peça do Monte</button>
+                <button id="btn-pausar">Pausar e Salvar Série</button>
+                <button id="btn-desistir">Desistir da Partida / Sair</button>
+            </section>
+            
+            <details id="detalhes-historico">
+                <summary>Histórico Completo de Jogadas</summary>
+                <ul id="lista-historico" aria-live="polite"></ul>
+            </details>
         </main>
     </div>
 
     <script>
-        const config = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
-        firebase.initializeApp(config);
-        const db = firebase.database(); let salaIdAtual = null;
+        // CONFIGURAÇÃO FIREBASE
+        const firebaseConfig = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); const db = firebase.database();
 
-        function logar() {
-            firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value)
-            .then(() => {
-                document.getElementById('tela-login').className = 'hidden';
-                document.getElementById('tela-menu').className = '';
-            });
+        // SISTEMA DE ÁUDIO E ACESSIBILIDADE
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+        function initAudio() { if (!audioCtx) audioCtx = new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); }
+        function tocarSom(tipo) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            if (tipo === 'embaralhar') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (tipo === 'jogar') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (tipo === 'erro') {
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.setValueAtTime(100, audioCtx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (tipo === 'vitoria') {
+                osc.type = 'sine'; osc.frequency.setValueAtTime(400, audioCtx.currentTime); osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.2); osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.4);
+                gain.gain.setValueAtTime(0.5, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.6);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.6);
+            }
         }
 
-        function criarSala() {
-            const sala = db.ref('salas').push();
-            sala.set({ admin: firebase.auth().currentUser.uid, status: 'aguardando', jogadores: {[firebase.auth().currentUser.uid]: {nome: 'Admin'}} });
-            entrarNaSala(sala.key);
+        const anunciadorPolite = document.getElementById('anunciador-acessibilidade');
+        const anunciadorAssertivo = document.getElementById('anunciador-urgente');
+        function falar(texto) { anunciadorPolite.textContent = ''; setTimeout(() => anunciadorPolite.textContent = texto, 100); }
+        function falarAssertivo(texto) { anunciadorAssertivo.textContent = ''; setTimeout(() => anunciadorAssertivo.textContent = texto, 100); }
+
+        document.getElementById('btn-tema').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            document.getElementById('btn-tema').textContent = isDark ? 'Desativar modo escuro' : 'Ativar modo escuro';
+            falarAssertivo(isDark ? 'Modo escuro ativado.' : 'Modo escuro desativado.');
+        });
+
+        // VARIÁVEIS GLOBAIS DE JOGO
+        let jogadorApelido = '';
+        let currentUser = null;
+        let isOnlineMode = false;
+        let salaIdAtual = null;
+        let isAdminDaSala = false;
+        let salaListener = null;
+        let listaBotsEstados = ["Acre", "Alagoas", "Amapá", "Amazonas", "Bahia", "Ceará", "Distrito Federal", "Espírito Santo", "Goiás", "Maranhão", "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Pará", "Paraíba", "Paraná", "Pernambuco", "Piauí", "Rio de Janeiro", "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia", "Roraima", "Santa Catarina", "São Paulo", "Sergipe", "Tocantins"];
+
+        let ranking = JSON.parse(localStorage.getItem('domino_ranking')) || { vitorias: 0, derrotas: 0 };
+        let serie = { alvoVitorias: 1, winsJogador: 0, winsBot: 0, quemComecaProxima: 'random' };
+        let estado = { maoJogador: [], maoBot: [], monte: [], pecasNaMesa: [], pontaEsquerda: null, pontaDireita: null, turnoAtual: '', historico: [], finalizado: false };
+        let pecaSelecionadaIndex = -1;
+
+        // AUTENTICAÇÃO E LOBBY
+        function fazerLogin() {
+            const email = document.getElementById('input-email').value.trim();
+            const senha = document.getElementById('input-senha').value.trim();
+            if(!email || !senha) { falarAssertivo("Preencha e-mail e senha."); return; }
+            auth.signInWithEmailAndPassword(email, senha).catch(e => falarAssertivo("Erro ao logar: " + e.message));
         }
 
-        function entrarNaSala(id) {
-            salaIdAtual = id;
-            document.getElementById('tela-menu').className = 'hidden';
-            document.getElementById('tela-espera').className = '';
-            
-            db.ref('salas/' + id).on('value', snap => {
-                const s = snap.val();
-                if(!s) return;
-                
-                // Exibe jogadores
-                const ul = document.getElementById('lista-jogadores'); ul.innerHTML = '';
-                Object.keys(s.jogadores).forEach(uid => { 
-                    const li = document.createElement('li'); li.textContent = s.jogadores[uid].nome; ul.appendChild(li); 
+        function criarConta() {
+            const email = document.getElementById('input-email').value.trim();
+            const senha = document.getElementById('input-senha').value.trim();
+            const apelido = document.getElementById('input-apelido').value.trim();
+            if(!email || !senha || !apelido) { falarAssertivo("Preencha e-mail, senha e apelido."); return; }
+            auth.createUserWithEmailAndPassword(email, senha).then(cred => {
+                cred.user.updateProfile({ displayName: apelido });
+                db.ref(`usuarios/${cred.user.uid}`).set({ apelido: apelido, nivel: 'usuario' });
+            }).catch(e => falarAssertivo("Erro ao criar: " + e.message));
+        }
+
+        function recuperarSenha() {
+            const email = document.getElementById('input-email').value.trim();
+            if(!email) { falarAssertivo("Digite o e-mail para recuperar."); return; }
+            auth.sendPasswordResetEmail(email).then(() => falarAssertivo("E-mail de recuperação enviado."));
+        }
+
+        function sairConta() { auth.signOut(); }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                db.ref(`usuarios/${user.uid}`).once('value').then(snap => {
+                    const dados = snap.val();
+                    jogadorApelido = dados ? dados.apelido : (user.displayName || "Jogador");
+                    document.getElementById('display-apelido').textContent = jogadorApelido;
+                    
+                    document.getElementById('tela-login').style.display = 'none';
+                    document.getElementById('tela-menu').style.display = 'block';
+                    
+                    db.ref(`lobby/presenca/${user.uid}`).set(true);
+                    db.ref(`lobby/presenca/${user.uid}`).onDisconnect().remove();
+                    
+                    atualizarDisplayRanking();
+                    verificarSaveStatus();
+                    iniciarListenersLobby();
+                    falarAssertivo(`Bem-vindo, ${jogadorApelido}.`);
                 });
+            } else {
+                currentUser = null;
+                document.getElementById('tela-login').style.display = 'block';
+                document.getElementById('tela-menu').style.display = 'none';
+                document.getElementById('tela-espera-sala').style.display = 'none';
+                document.getElementById('tela-jogo').style.display = 'none';
+            }
+        });
 
-                // Botão iniciar só para o Admin
-                if(s.admin === firebase.auth().currentUser.uid) document.getElementById('btn-iniciar').className = '';
-
-                // Transição real para tela de jogo
-                if(s.status === 'jogando') {
-                    document.getElementById('tela-espera').className = 'hidden';
-                    document.getElementById('tela-jogo').className = '';
-                }
+        function iniciarListenersLobby() {
+            db.ref('lobby/presenca').on('value', snap => {
+                document.getElementById('qtd-online').textContent = snap.numChildren();
+            });
+            db.ref('salas').on('value', snap => {
+                const ul = document.getElementById('ul-salas');
+                ul.innerHTML = '';
+                let contSalas = 0;
+                snap.forEach(s => {
+                    const sala = s.val();
+                    if(sala.status === 'aguardando') {
+                        contSalas++;
+                        const div = document.createElement('div'); div.className = 'sala-item';
+                        div.innerHTML = `<span>Mesa de ${sala.nomeAdmin}</span> <button onclick="entrarNaSalaOnline('${s.key}')">Entrar</button>`;
+                        ul.appendChild(div);
+                    }
+                });
+                document.getElementById('qtd-salas').textContent = contSalas;
+                if(contSalas === 0) ul.innerHTML = '<p>Nenhuma mesa disponível no momento.</p>';
             });
         }
 
-        function iniciarJogo() {
-            db.ref('salas/' + salaIdAtual).update({status: 'jogando'});
+        function atualizarDisplayRanking() {
+            document.getElementById('ranking-vitorias').textContent = ranking.vitorias;
+            document.getElementById('ranking-derrotas').textContent = ranking.derrotas;
         }
 
-        // Listagem de salas
-        db.ref('salas').on('value', snap => {
-            const list = document.getElementById('lista-salas'); list.innerHTML = '';
-            snap.forEach(s => {
-                if(s.val().status === 'aguardando') {
-                    const b = document.createElement('button');
-                    b.textContent = "Entrar na Mesa: " + s.key.substring(0,5);
-                    b.onclick = () => entrarNaSala(s.key);
-                    list.appendChild(b);
-                }
+        function verificarSaveStatus() {
+            if (localStorage.getItem('domino_save_serie')) document.getElementById('btn-continuar-jogo').style.display = 'inline-block';
+            else document.getElementById('btn-continuar-jogo').style.display = 'none';
+        }
+
+        function voltarParaMenu() {
+            isOnlineMode = false;
+            if(salaIdAtual) {
+                if(isAdminDaSala) { db.ref(`salas/${salaIdAtual}`).remove(); }
+                else { db.ref(`salas/${salaIdAtual}/jogadores/${currentUser.uid}`).remove(); }
+                if(salaListener) { salaListener.off(); salaListener = null; }
+                salaIdAtual = null;
+            }
+            document.getElementById('tela-espera-sala').style.display = 'none';
+            document.getElementById('tela-jogo').style.display = 'none';
+            document.getElementById('tela-menu').style.display = 'block';
+            falarAssertivo("Retornando ao menu principal.");
+        }
+
+        // --- MODO ONLINE (SALA DE ESPERA E SINCRONIZAÇÃO) ---
+        document.getElementById('btn-modo-online').addEventListener('click', () => {
+            initAudio(); tocarSom('embaralhar');
+            const ref = db.ref('salas').push();
+            ref.set({
+                adminUID: currentUser.uid, nomeAdmin: jogadorApelido, status: 'aguardando',
+                jogadores: { [currentUser.uid]: { nome: jogadorApelido, tipo: 'humano' } }
+            }).then(() => {
+                entrarNaSalaOnline(ref.key, true);
             });
         });
+
+        window.entrarNaSalaOnline = function(id, isCriador = false) {
+            initAudio();
+            salaIdAtual = id;
+            isOnlineMode = true;
+            isAdminDaSala = isCriador;
+            
+            document.getElementById('tela-menu').style.display = 'none';
+            document.getElementById('tela-espera-sala').style.display = 'block';
+            
+            if(!isCriador) {
+                db.ref(`salas/${id}/jogadores/${currentUser.uid}`).set({ nome: jogadorApelido, tipo: 'humano' });
+            }
+
+            document.getElementById('controles-admin-sala').style.display = isAdminDaSala ? 'block' : 'none';
+
+            salaListener = db.ref(`salas/${id}`);
+            salaListener.on('value', snap => {
+                const s = snap.val();
+                if(!s) { voltarParaMenu(); return; }
+                
+                // Atualiza Lista de Jogadores na Espera
+                const ul = document.getElementById('lista-jogadores-sala'); ul.innerHTML = '';
+                Object.keys(s.jogadores).forEach(uid => {
+                    const li = document.createElement('li'); 
+                    li.textContent = s.jogadores[uid].nome;
+                    ul.appendChild(li);
+                });
+
+                // Transição: A Mágica de Puxar a Tela do Jogo Online
+                if(s.status === 'jogando' && document.getElementById('tela-jogo').style.display === 'none') {
+                    document.getElementById('tela-espera-sala').style.display = 'none';
+                    document.getElementById('tela-jogo').style.display = 'block';
+                    falarAssertivo("A partida online começou! O tabuleiro foi desenhado.");
+                    
+                    // Pega o estado inicial distribuído pelo Admin
+                    estado = s.estado;
+                    document.getElementById('texto-placar-container').style.display = 'none'; // Oculta placar de série local
+                    atualizarInterface();
+                }
+
+                // Sincronização em tempo real das jogadas
+                if(s.status === 'jogando' && document.getElementById('tela-jogo').style.display === 'block') {
+                    estado = s.estado; // Atualiza o estado local com o do Firebase
+                    reconstruirMesaVisual();
+                    atualizarInterface();
+                    
+                    // Verifica se é a vez de um Bot e o Admin processa
+                    if(isAdminDaSala && estado.turnoAtual.startsWith('bot_')) {
+                        setTimeout(() => jogadaDoBotOnline(estado.turnoAtual), 2500);
+                    }
+                }
+            });
+        };
+
+        window.adicionarBotOnline = function() {
+            if(!isAdminDaSala || !salaIdAtual) return;
+            // Pega nome aleatório e remove da lista para não repetir
+            if(listaBotsEstados.length === 0) listaBotsEstados = ["Acre", "Bahia", "Ceará", "Pará", "Goiás", "São Paulo"]; // Reset se acabar
+            const indexAleatorio = Math.floor(Math.random() * listaBotsEstados.length);
+            const nomeEstado = listaBotsEstados.splice(indexAleatorio, 1)[0];
+            const botId = 'bot_' + Math.random().toString(36).substr(2, 9);
+            
+            db.ref(`salas/${salaIdAtual}/jogadores/${botId}`).set({ nome: `Bot ${nomeEstado}`, tipo: 'bot' });
+            falarAssertivo(`Bot ${nomeEstado} adicionado à mesa.`);
+        };
+
+        window.iniciarPartidaOnline = function() {
+            if(!isAdminDaSala || !salaIdAtual) return;
+            db.ref(`salas/${salaIdAtual}`).once('value').then(snap => {
+                const s = snap.val();
+                const uids = Object.keys(s.jogadores);
+                if(uids.length < 2) { alert("Mínimo de 2 jogadores para iniciar."); return; }
+
+                // Distribui peças igual ao local
+                let pecasTotais = gerarPecas();
+                let estadoInicial = {
+                    maos: {}, monte: pecasTotais, pecasNaMesa: [], historico: [],
+                    pontaEsquerda: null, pontaDireita: null, turnoAtual: uids[0], finalizado: false
+                };
+                
+                uids.forEach(uid => { estadoInicial.maos[uid] = pecasTotais.splice(0, 7); });
+                
+                // Grava no banco e muda status
+                db.ref(`salas/${salaIdAtual}`).update({ status: 'jogando', estado: estadoInicial });
+            });
+        };
+
+        // --- MOTOR DO JOGO UNIFICADO (LOCAL E ONLINE) ---
+
+        function gerarPecas() {
+            let p = []; for (let i = 0; i <= 6; i++) { for (let j = i; j <= 6; j++) { p.push({ ladoA: i, ladoB: j }); } }
+            return p.sort(() => Math.random() - 0.5);
+        }
+        function nomeAcessivel(peca) { return peca.ladoA === peca.ladoB ? `Carroça de ${peca.ladoA}` : `Peça ${peca.ladoA} e ${peca.ladoB}`; }
+
+        // MODO LOCAL CLÁSSICO INTACTO
+        document.getElementById('btn-modo-local').addEventListener('click', () => {
+            initAudio(); tocarSom('embaralhar');
+            isOnlineMode = false;
+            document.getElementById('texto-placar-container').style.display = 'block';
+            serie = { alvoVitorias: parseInt(document.getElementById('select-partidas').value), winsJogador: 0, winsBot: 0, quemComecaProxima: 'random' };
+            iniciarNovaPartidaLocal();
+        });
+
+        function iniciarNovaPartidaLocal() {
+            document.getElementById('tela-menu').style.display = 'none';
+            document.getElementById('tela-jogo').style.display = 'block';
+            document.getElementById('modal-fim-partida').style.display = 'none';
+            document.getElementById('area-mao').style.display = 'block';
+            
+            let pecasTotais = gerarPecas();
+            let quemComeca = serie.quemComecaProxima === 'random' ? (Math.random() > 0.5 ? 'jogador' : 'bot') : serie.quemComecaProxima;
+
+            estado = {
+                maoJogador: pecasTotais.splice(0, 7), maoBot: pecasTotais.splice(0, 7),
+                monte: pecasTotais, pecasNaMesa: [], pontaEsquerda: null, pontaDireita: null,
+                turnoAtual: quemComeca, historico: [], finalizado: false, isLocal: true
+            };
+            reconstruirMesaVisual(); atualizarInterface();
+            adicionarHistorico(`Nova partida local. Sorteio definiu que ${quemComeca === 'jogador' ? 'VOCÊ' : 'A MÁQUINA'} começa.`);
+            if (quemComeca === 'bot') setTimeout(jogadaDoBotLocal, 2000);
+        }
+
+        // RENDERIZAÇÃO VISUAL ÚNICA PARA AMBOS
+        function reconstruirMesaVisual() {
+            document.getElementById('area-mesa').innerHTML = estado.pecasNaMesa.length === 0 ? '<p>A mesa está vazia.</p>' : '';
+            estado.pecasNaMesa.forEach(txt => {
+                const pElem = document.createElement('span'); pElem.className = 'peca'; pElem.textContent = txt;
+                document.getElementById('area-mesa').appendChild(pElem);
+            });
+            const ul = document.getElementById('lista-historico'); ul.innerHTML = '';
+            estado.historico.forEach(txt => {
+                const li = document.createElement('li'); li.textContent = txt; ul.prepend(li);
+                document.getElementById('texto-ultima-acao').textContent = txt;
+            });
+        }
+
+        function atualizarInterface() {
+            if(estado.isLocal) {
+                document.getElementById('placar-jogador').textContent = serie.winsJogador;
+                document.getElementById('placar-bot').textContent = serie.winsBot;
+            }
+
+            document.getElementById('ponta-esq').textContent = estado.pontaEsquerda !== null ? estado.pontaEsquerda : 'Vazia';
+            document.getElementById('ponta-dir').textContent = estado.pontaDireita !== null ? estado.pontaDireita : 'Vazia';
+            document.getElementById('qtd-monte').textContent = estado.monte ? estado.monte.length : 0;
+            
+            // Verifica a Mão e Oponente
+            let minhaMao = [];
+            let isMinhaVez = false;
+
+            if(isOnlineMode) {
+                minhaMao = estado.maos[currentUser.uid] || [];
+                isMinhaVez = estado.turnoAtual === currentUser.uid;
+                
+                // Calcula peças dos adversários online (soma tudo menos a minha)
+                let oponentesRestantes = 0;
+                Object.keys(estado.maos).forEach(uid => { if(uid !== currentUser.uid) oponentesRestantes += estado.maos[uid].length; });
+                document.getElementById('qtd-bot').textContent = oponentesRestantes;
+                document.getElementById('texto-turno').textContent = isMinhaVez ? "SUA VEZ" : "Vez do Oponente";
+            } else {
+                minhaMao = estado.maoJogador;
+                isMinhaVez = estado.turnoAtual === 'jogador';
+                document.getElementById('qtd-bot').textContent = estado.maoBot.length;
+                document.getElementById('texto-turno').textContent = isMinhaVez ? 'Sua vez' : 'Vez da Máquina';
+            }
+
+            document.getElementById('btn-cavar').disabled = !isMinhaVez;
+            
+            const areaMao = document.getElementById('area-mao'); areaMao.innerHTML = '';
+            minhaMao.forEach((peca, index) => {
+                const btn = document.createElement('button'); btn.className = 'peca';
+                btn.setAttribute('aria-label', nomeAcessivel(peca));
+                btn.innerHTML = `<span aria-hidden="true">${peca.ladoA} | ${peca.ladoB}</span>`;
+                btn.disabled = !isMinhaVez;
+                btn.onclick = () => processarCliquePeca(index, peca);
+                areaMao.appendChild(btn);
+            });
+        }
+
+        // LÓGICA DE JOGADA
+        function checarOpcoesDeJogada(peca) {
+            if (estado.pontaEsquerda === null && estado.pontaDireita === null) return ['primeira'];
+            let opcoes = [];
+            if (peca.ladoA === estado.pontaEsquerda || peca.ladoB === estado.pontaEsquerda) opcoes.push('esquerda');
+            if (peca.ladoA === estado.pontaDireita || peca.ladoB === estado.pontaDireita) opcoes.push('direita');
+            return opcoes;
+        }
+
+        function processarCliquePeca(index, pecaObj) {
+            pecaSelecionadaIndex = index;
+            const opcoes = checarOpcoesDeJogada(pecaObj);
+            if (opcoes.length === 0) { tocarSom('erro'); falarAssertivo("Não encaixa."); return; }
+            if (opcoes.length === 1) executarJogadaIntermediario(index, opcoes[0]);
+            else {
+                document.getElementById('texto-modal-peca').textContent = `Onde deseja jogar?`;
+                document.getElementById('modal-escolha').style.display = 'block'; document.getElementById('area-mao').style.display = 'none';
+            }
+        }
+
+        document.getElementById('btn-jogar-esq').onclick = () => { fecharModalEscolha(); executarJogadaIntermediario(pecaSelecionadaIndex, 'esquerda'); };
+        document.getElementById('btn-jogar-dir').onclick = () => { fecharModalEscolha(); executarJogadaIntermediario(pecaSelecionadaIndex, 'direita'); };
+        document.getElementById('btn-cancelar-jogada').onclick = () => fecharModalEscolha();
+        function fecharModalEscolha() { document.getElementById('modal-escolha').style.display = 'none'; document.getElementById('area-mao').style.display = 'block'; }
+
+        function executarJogadaIntermediario(index, lado) {
+            if(isOnlineMode) executarJogadaMotor(currentUser.uid, index, lado);
+            else executarJogadaMotor('jogador', index, lado);
+        }
+
+        function executarJogadaMotor(atorId, indexPeca, lado) {
+            tocarSom('jogar');
+            let peca;
+            if(isOnlineMode) peca = estado.maos[atorId].splice(indexPeca, 1)[0];
+            else peca = (atorId === 'jogador') ? estado.maoJogador.splice(indexPeca, 1)[0] : estado.maoBot.splice(indexPeca, 1)[0];
+
+            if (lado === 'primeira') { estado.pontaEsquerda = peca.ladoA; estado.pontaDireita = peca.ladoB; }
+            else if (lado === 'esquerda') { estado.pontaEsquerda = (peca.ladoA === estado.pontaEsquerda) ? peca.ladoB : peca.ladoA; }
+            else if (lado === 'direita') { estado.pontaDireita = (peca.ladoA === estado.pontaDireita) ? peca.ladoB : peca.ladoA; }
+
+            const txtVisual = `${peca.ladoA} | ${peca.ladoB}`;
+            if(!estado.pecasNaMesa) estado.pecasNaMesa = [];
+            if (lado === 'esquerda' || lado === 'primeira') estado.pecasNaMesa.unshift(txtVisual);
+            else estado.pecasNaMesa.push(txtVisual);
+
+            const nomeAtor = isOnlineMode ? (atorId === currentUser.uid ? 'Você' : 'Oponente') : (atorId === 'jogador' ? 'Você' : 'Máquina');
+            adicionarHistorico(`${nomeAtor} jogou a peça ${txtVisual}.`);
+            
+            verificarFimDePartida(atorId);
+        }
+
+        document.getElementById('btn-cavar').addEventListener('click', () => {
+            initAudio();
+            let pecasMao = isOnlineMode ? estado.maos[currentUser.uid] : estado.maoJogador;
+            let temValida = pecasMao.some(p => checarOpcoesDeJogada(p).length > 0);
+            if(estado.pontaEsquerda === null) temValida = true;
+
+            if (temValida) { tocarSom('erro'); falarAssertivo("Bloqueado! Você tem pedra na mão."); return; }
+            
+            if (!estado.monte || estado.monte.length === 0) {
+                adicionarHistorico("Monte vazio. Passou a vez.");
+                falarAssertivo("Monte vazio. Passou a vez.");
+                avancarTurno();
+            } else {
+                const p = estado.monte.shift();
+                if(isOnlineMode) estado.maos[currentUser.uid].push(p); else estado.maoJogador.push(p);
+                adicionarHistorico("Comprou uma peça.");
+                falarAssertivo("Você comprou do monte.");
+                if(isOnlineMode) sincronizarFirebase(); else atualizarInterface();
+            }
+        });
+
+        // INTELIGÊNCIA LOCAL DA MÁQUINA
+        function jogadaDoBotLocal() {
+            if(estado.finalizado) return;
+            for (let i = 0; i < estado.maoBot.length; i++) {
+                const opcoes = checarOpcoesDeJogada(estado.maoBot[i]);
+                if (opcoes.length > 0) { executarJogadaMotor('bot', i, opcoes[0]); return; }
+            }
+            if (estado.monte.length > 0) { estado.maoBot.push(estado.monte.shift()); setTimeout(jogadaDoBotLocal, 1500); }
+            else { adicionarHistorico("Máquina passou."); avancarTurno(); }
+        }
+
+        // INTELIGÊNCIA ONLINE DA MÁQUINA (Gerida pelo Admin)
+        window.jogadaDoBotOnline = function(botId) {
+            if(estado.finalizado || !isAdminDaSala) return;
+            let maoBot = estado.maos[botId] || [];
+            for (let i = 0; i < maoBot.length; i++) {
+                const opcoes = checarOpcoesDeJogada(maoBot[i]);
+                if (opcoes.length > 0) { executarJogadaMotor(botId, i, opcoes[0]); return; }
+            }
+            if (estado.monte && estado.monte.length > 0) { 
+                estado.maos[botId].push(estado.monte.shift()); sincronizarFirebase(); // Comprar demora 1 turno online
+            } else { adicionarHistorico("Bot passou."); avancarTurno(); }
+        };
+
+        function avancarTurno() {
+            if(isOnlineMode) {
+                db.ref(`salas/${salaIdAtual}`).once('value').then(s => {
+                    const uids = Object.keys(s.val().jogadores);
+                    const atualIdx = uids.indexOf(estado.turnoAtual);
+                    estado.turnoAtual = uids[(atualIdx + 1) % uids.length];
+                    sincronizarFirebase();
+                });
+            } else {
+                estado.turnoAtual = estado.turnoAtual === 'jogador' ? 'bot' : 'jogador';
+                atualizarInterface();
+                if (estado.turnoAtual === 'bot') setTimeout(jogadaDoBotLocal, 2500);
+            }
+        }
+
+        function sincronizarFirebase() {
+            if(isOnlineMode && salaIdAtual && !estado.finalizado) {
+                db.ref(`salas/${salaIdAtual}/estado`).set(estado);
+            }
+        }
+
+        function verificarFimDePartida(atorId) {
+            let maoAtor = isOnlineMode ? estado.maos[atorId] : (atorId === 'jogador' ? estado.maoJogador : estado.maoBot);
+            if (maoAtor.length === 0) {
+                estado.finalizado = true;
+                if(isOnlineMode) {
+                    db.ref(`salas/${salaIdAtual}/estado`).set(estado); // Grava a batida
+                    tocarSom(atorId === currentUser.uid ? 'vitoria' : 'erro');
+                    falarAssertivo("A partida online terminou!");
+                    setTimeout(voltarParaMenu, 5000); // Encerra e volta pro menu após 5 seg
+                } else {
+                    tocarSom(atorId === 'jogador' ? 'vitoria' : 'erro');
+                    serie[atorId === 'jogador' ? 'winsJogador' : 'winsBot']++;
+                    atualizarInterface();
+                    document.getElementById('modal-fim-partida').style.display = 'block';
+                }
+            } else {
+                avancarTurno();
+            }
+        }
+
+        // COMANDOS DE SAÍDA
+        document.getElementById('btn-desistir').addEventListener('click', voltarParaMenu);
+        document.getElementById('btn-pausar').addEventListener('click', voltarParaMenu);
+        document.getElementById('btn-encerrar-serie').addEventListener('click', voltarParaMenu);
     </script>
 </body>
 </html>
