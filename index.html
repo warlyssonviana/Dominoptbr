@@ -9,8 +9,7 @@
     <style>
         body { font-family: sans-serif; padding: 20px; }
         .hidden { display: none !important; }
-        button { padding: 15px; width: 100%; margin: 5px 0; font-size: 1.1rem; cursor: pointer; }
-        .btn-acao { background: #0056b3; color: white; border: none; border-radius: 5px; }
+        button { padding: 15px; width: 100%; margin: 5px 0; font-size: 1.2rem; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -19,103 +18,66 @@
             <h2>Login</h2>
             <input type="email" id="email" placeholder="E-mail">
             <input type="password" id="senha" placeholder="Senha">
-            <button class="btn-acao" onclick="login()">Entrar</button>
-            <button onclick="cadastro()">Criar Conta</button>
+            <button onclick="login()">Entrar</button>
         </main>
 
         <main id="tela-menu" class="hidden">
-            <h2>Bem-vindo, <span id="display-nome"></span></h2>
-            <h3>Online: <span id="qtd-online">0</span></h3>
-            <button class="btn-acao" onclick="criarMesa()">Criar Nova Mesa</button>
-            <hr>
-            <h3>Mesas Disponíveis:</h3>
+            <h2>Bem-vindo!</h2>
+            <button onclick="jogarModo('local')">Jogar Local (Offline)</button>
+            <button onclick="jogarModo('online')">Jogar Online</button>
             <div id="lista-salas"></div>
         </main>
 
-        <main id="tela-espera" class="hidden">
-            <h2>Sala de Espera</h2>
+        <main id="tela-mesa" class="hidden">
+            <h2 id="titulo-sala">Sala</h2>
             <ul id="lista-jogadores"></ul>
-            <button id="btn-iniciar-online" class="hidden" onclick="iniciarPartida()">Iniciar Partida</button>
-            <button onclick="sairMesa()">Sair</button>
+            <button id="btn-iniciar" onclick="iniciarPartida()">Iniciar Partida</button>
         </main>
 
         <main id="tela-jogo" class="hidden">
-            <h2>Partida em Andamento</h2>
-            <p>Se você vê este texto, o jogo iniciou!</p>
-            <button onclick="window.location.reload()">Sair do Jogo</button>
+            <h2>Jogo Iniciado!</h2>
         </main>
     </div>
 
     <script>
-        const firebaseConfig = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
-        firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth(); const db = firebase.database();
+        const config = { apiKey: "AIzaSyCnDPInMASJwsZyl8Y7i3sGxL_yttIOZe8", authDomain: "dominoacessivel.firebaseapp.com", databaseURL: "https://dominoacessivel-default-rtdb.firebaseio.com", projectId: "dominoacessivel", storageBucket: "dominoacessivel.firebasestorage.app", messagingSenderId: "253382950798", appId: "1:253382950798:web:76e3c75dd7d687647feedf" };
+        firebase.initializeApp(config);
+        const db = firebase.database();
         let salaIdAtual = null;
 
         function login() {
-            auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value)
-            .catch(e => alert(e.message));
-        }
-
-        auth.onAuthStateChanged(user => {
-            if(user) {
+            firebase.auth().signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('senha').value)
+            .then(() => {
                 document.getElementById('tela-login').className = 'hidden';
                 document.getElementById('tela-menu').className = '';
-                db.ref('lobby/presenca/' + user.uid).set(true);
-                db.ref('lobby/presenca').on('value', s => document.getElementById('qtd-online').innerText = s.numChildren());
-                carregarSalas();
-            }
-        });
-
-        function criarMesa() {
-            const sala = db.ref('salas').push();
-            sala.set({ admin: auth.currentUser.uid, status: 'aguardando', jogadores: {[auth.currentUser.uid]: {nome: 'Admin'}} });
-            entrarNaSala(sala.key);
+            });
         }
 
-        function carregarSalas() {
-            db.ref('salas').on('value', snap => {
-                const lista = document.getElementById('lista-salas'); lista.innerHTML = '';
-                snap.forEach(s => {
-                    const b = document.createElement('button');
-                    b.textContent = "Entrar em Mesa: " + s.key;
-                    b.onclick = () => entrarNaSala(s.key);
-                    lista.appendChild(b);
-                });
-            });
+        function jogarModo(modo) {
+            if(modo === 'local') { alert("Modo Offline."); } 
+            else {
+                const sala = db.ref('salas').push();
+                sala.set({ status: 'aguardando', jogadores: {[firebase.auth().currentUser.uid]: {nome: 'Admin'}} });
+                entrarNaSala(sala.key);
+            }
         }
 
         function entrarNaSala(id) {
             salaIdAtual = id;
-            db.ref(`salas/${id}/jogadores/${auth.currentUser.uid}`).set({ nome: 'Jogador' });
             document.getElementById('tela-menu').className = 'hidden';
             document.getElementById('tela-espera').className = '';
-            monitorarSala(id);
-        }
-
-        function monitorarSala(id) {
-            db.ref(`salas/${id}`).on('value', snap => {
-                const s = snap.val();
-                if(!s) { alert("Sala excluída!"); irParaMenu(); return; }
-                if(s.status === 'jogando') {
+            db.ref('salas/' + id).on('value', s => {
+                const sala = s.val();
+                if(sala.status === 'jogando') {
                     document.getElementById('tela-espera').className = 'hidden';
                     document.getElementById('tela-jogo').className = '';
                 }
-                const ul = document.getElementById('lista-jogadores'); ul.innerHTML = '';
-                Object.keys(s.jogadores).forEach(uid => {
-                    const li = document.createElement('li'); li.textContent = s.jogadores[uid].nome;
-                    ul.appendChild(li);
-                });
-                if(s.admin === auth.currentUser.uid) document.getElementById('btn-iniciar-online').className = '';
             });
         }
 
         function iniciarPartida() {
             db.ref('salas/' + salaIdAtual).update({status: 'jogando'});
         }
-
-        function irParaMenu() { window.location.reload(); }
-        function sairMesa() { db.ref(`salas/${salaIdAtual}/jogadores/${auth.currentUser.uid}`).remove(); irParaMenu(); }
     </script>
 </body>
 </html>
